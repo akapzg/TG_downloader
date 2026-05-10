@@ -130,9 +130,6 @@ class DownloadBot:
         """Update config from str."""
         self.config["download_filter"] = self.download_filter
 
-        with open("d", "w", encoding="utf-8") as yaml_file:
-            self._yaml.dump(self.config, yaml_file)
-
     async def start(
         self,
         app: Application,

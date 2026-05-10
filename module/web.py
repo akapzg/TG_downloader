@@ -27,12 +27,15 @@ log.setLevel(logging.ERROR)
 
 _flask_app = Flask(__name__)
 
-_flask_app.secret_key = "tdl"
+_flask_app.secret_key = os.environ.get("FLASK_SECRET_KEY", "tdl")
 _login_manager = LoginManager()
 _login_manager.login_view = "login"
 _login_manager.init_app(_flask_app)
 web_login_users: dict = {}
-deAesCrypt = AesBase64("1234123412ABCDEF", "ABCDEF1234123412")
+deAesCrypt = AesBase64(
+    os.environ.get("AES_KEY", "1234123412ABCDEF"),
+    os.environ.get("AES_IV", "ABCDEF1234123412"),
+)
 
 # ── Telegram auth state machine ──────────────────────────────────────
 # Stores in-progress Pyrogram login clients keyed by Flask session ID.
@@ -150,7 +153,11 @@ def login():
 
         return jsonify({"code": "0"})
 
-    return render_template("login.html")
+    return render_template(
+        "login.html",
+        aes_key=os.environ.get("AES_KEY", "1234123412ABCDEF"),
+        aes_iv=os.environ.get("AES_IV", "ABCDEF1234123412"),
+    )
 
 
 @_flask_app.route("/")
@@ -633,10 +640,6 @@ def get_logs():
         return jsonify({"success": False, "error": "App not ready"}), 500
     
     log_file = os.path.join(app.log_file_path, "tdl.log")
-    # 临时修正路径查找逻辑，确保指向正确的文件
-    if not os.path.exists(log_file):
-        log_file = "/home/pzg/projects/TG_downloader/log/tdl.log"
-    
     if not os.path.exists(log_file):
         return jsonify({"success": False, "error": "Log file not found"}), 404
     

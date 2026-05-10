@@ -33,8 +33,8 @@
 
     //加密方法
     const encrypt = (word) => {
-      const key = CryptoJS.enc.Utf8.parse("1234123412ABCDEF");
-      const iv = CryptoJS.enc.Utf8.parse('ABCDEF1234123412');
+      const key = CryptoJS.enc.Utf8.parse({{ aes_key | tojson }});
+      const iv = CryptoJS.enc.Utf8.parse({{ aes_iv | tojson }});
       let srcs = CryptoJS.enc.Utf8.parse(word);
       let encrypted = CryptoJS.AES.encrypt(srcs, key, { iv: iv, mode: CryptoJS.mode.CBC, padding: CryptoJS.pad.Pkcs7 });
       let hexStr = encrypted.ciphertext.toString();
