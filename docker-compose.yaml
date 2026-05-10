@@ -21,6 +21,6 @@ services:
       - ./temp:/app/temp
       - ./downloads:/app/downloads
       # Rclone config for cloud upload (optional — create ./rclone/rclone.conf first)
-      - ./rclone:/root/.config/rclone:ro
+      - ./rclone:/root/.config/rclone
 
     restart: unless-stopped
