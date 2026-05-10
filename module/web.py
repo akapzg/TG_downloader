@@ -10,7 +10,7 @@ from typing import Optional
 
 from datetime import timedelta
 
-from flask import Flask, jsonify, render_template, request, session as flask_session
+from flask import Flask, jsonify, redirect, render_template, request, session as flask_session
 from flask_login import LoginManager, UserMixin, login_required, login_user
 
 import utils
@@ -130,17 +130,9 @@ def init_web(app: Application):
 @_flask_app.route("/login", methods=["GET", "POST"])
 def login():
     """
-    Function to handle the login route.
-
-    Parameters:
-    - No parameters
-
-    Returns:
-    - If the request method is "POST" and the username and
-      password match the ones in the web_login_users dictionary,
-      it returns a JSON response with a code of "1".
-    - Otherwise, it returns a JSON response with a code of "0".
-    - If the request method is not "POST", it returns the rendered "login.html" template.
+    Web login endpoint.
+    GET: redirect to main page (login is now an overlay)
+    POST: verify password via AES-encrypted form data
     """
     if request.method == "POST":
         username = "root"
@@ -162,11 +154,7 @@ def login():
 
         return jsonify({"code": "0"})
 
-    return render_template(
-        "login.html",
-        aes_key=os.environ.get("AES_KEY", "1234123412ABCDEF"),
-        aes_iv=os.environ.get("AES_IV", "ABCDEF1234123412"),
-    )
+    return redirect("/")
 
 
 @_flask_app.route("/api/check_auth")

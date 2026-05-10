@@ -20,6 +20,16 @@ media_types:
 - document
 - voice
 - video_note
-# web_login_secret: your_login_password
-# in linux please use /
-# save_path: E:\github\telegram_media_downloader
+# ── Web UI password (set via WEB_LOGIN_SECRET env var or here) ──
+# web_login_secret: your_password
+# ── Bot configuration ──────────────────────────────────────────
+# bot_token: "1234567890:ABCdefGHIjklMNOpqrsTUVwxyz"
+# allowed_user_ids:
+#   - 123456789
+# ── Cloud upload via rclone ────────────────────────────────────
+# upload_drive:
+#   enable_upload_file: false
+#   upload_adapter: rclone
+#   remote_dir: "gdrive:/telegram_downloads"
+#   before_upload_file_zip: false
+#   after_upload_file_delete: true
