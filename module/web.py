@@ -8,6 +8,8 @@ import threading
 from dataclasses import dataclass, field
 from typing import Optional
 
+from datetime import timedelta
+
 from flask import Flask, jsonify, render_template, request, session as flask_session
 from flask_login import LoginManager, UserMixin, login_required, login_user
 
@@ -29,6 +31,7 @@ log.setLevel(logging.ERROR)
 _flask_app = Flask(__name__)
 
 _flask_app.secret_key = os.environ.get("FLASK_SECRET_KEY", "tdl")
+_flask_app.config["PERMANENT_SESSION_LIFETIME"] = timedelta(minutes=5)
 _login_manager = LoginManager()
 _login_manager.login_view = "login"
 _login_manager.init_app(_flask_app)
@@ -153,6 +156,7 @@ def login():
         if username in web_login_users and web_login_users[username] == password:
             user = User()
             login_user(user)
+            flask_session.permanent = True
             return jsonify({"code": "1"})
 
         return jsonify({"code": "0"})
@@ -164,8 +168,14 @@ def login():
     )
 
 
+@_flask_app.route("/api/check_auth")
+def check_auth():
+    """Return auth status for the frontend login overlay."""
+    from flask_login import current_user
+    return jsonify({"authenticated": current_user.is_authenticated})
+
+
 @_flask_app.route("/")
-@login_required
 def index():
     """Index html"""
     return render_template(
@@ -173,6 +183,8 @@ def index():
         download_state=(
             "pause" if get_download_state() is DownloadState.Downloading else "continue"
         ),
+        aes_key=os.environ.get("AES_KEY", "1234123412ABCDEF"),
+        aes_iv=os.environ.get("AES_IV", "ABCDEF1234123412"),
     )
 
 

@@ -6,6 +6,8 @@
   <title>Telegram Media Downloader</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <link href="static/layui/css/layui.css" rel="stylesheet">
+  <script src="static/layui/layui.js"></script>
+  <script src="static/aes/crypto-js-master/crypto-js.js"></script>
 
   <!-- ==================== Custom CSS: override Layui defaults ==================== -->
   <style>
@@ -317,6 +319,77 @@
     .status-dot.offline { background: #9ca3af; }
 
     /* ---------- Responsive ---------- */
+    /* ---------- Login overlay ---------- */
+    .login-overlay {
+      position: fixed;
+      inset: 0;
+      z-index: 9999;
+      background: rgba(0,0,0,0.6);
+      backdrop-filter: blur(6px);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .login-overlay.hidden { display: none; }
+    .login-card {
+      background: #fff;
+      border-radius: 16px;
+      padding: 40px 36px;
+      width: 360px;
+      max-width: 90vw;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+      text-align: center;
+    }
+    .login-card .icon {
+      font-size: 48px;
+      margin-bottom: 8px;
+    }
+    .login-card h2 {
+      font-size: 20px;
+      font-weight: 700;
+      color: #1f2937;
+      margin-bottom: 4px;
+    }
+    .login-card .sub {
+      font-size: 13px;
+      color: #9ca3af;
+      margin-bottom: 24px;
+    }
+    .login-card .input-p {
+      width: 100%;
+      padding: 12px 16px;
+      font-size: 15px;
+      border: 1px solid #d1d5db;
+      border-radius: 10px;
+      outline: none;
+      margin-bottom: 16px;
+      transition: border-color 0.2s;
+    }
+    .login-card .input-p:focus {
+      border-color: #4f6ef7;
+      box-shadow: 0 0 0 3px rgba(79,110,247,0.15);
+    }
+    .login-card .btn-login {
+      width: 100%;
+      padding: 12px;
+      font-size: 15px;
+      font-weight: 600;
+      border: none;
+      border-radius: 10px;
+      background: #4f6ef7;
+      color: #fff;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    .login-card .btn-login:hover { background: #3b5de7; }
+    .login-card .btn-login:disabled { opacity: 0.5; cursor: not-allowed; }
+    .login-card .error-msg {
+      color: #dc2626;
+      font-size: 13px;
+      margin-top: 8px;
+      display: none;
+    }
+
     @media (max-width: 768px) {
       .toggle-btn { padding: 8px 18px; font-size: 13px; }
       .tab-btn { padding: 8px 16px; font-size: 13px; }
@@ -325,6 +398,19 @@
 </head>
 
 <body class="min-h-screen flex flex-col">
+
+  <!-- ========== Login Overlay ========== -->
+  <div id="login_overlay" class="login-overlay">
+    <div class="login-card">
+      <div class="icon">🔒</div>
+      <h2>Telegram Media Downloader</h2>
+      <div class="sub">Enter password to continue</div>
+      <input type="password" class="input-p" id="login_password" placeholder="Password" autocomplete="current-password">
+      <button class="btn-login" id="btn_login" onclick="doWebLogin()">Confirm</button>
+      <div class="error-msg" id="login_error"></div>
+    </div>
+  </div>
+
   <!-- ========== Page wrapper (Tailwind layout) ========== -->
   <div class="max-w-6xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 flex-1">
 
@@ -592,7 +678,72 @@
   </div>
 
   <!-- ========== Scripts ========== -->
-  <script src="static/layui/layui.js"></script>
+  <script>
+    // ─── Global login helpers ──
+    const $ = layui.$;
+    const layer = layui.layer;
+    
+    const aesKey = "{{ aes_key }}";
+    const aesIv = "{{ aes_iv }}";
+    
+    function encrypt(word) {
+      const key = CryptoJS.enc.Utf8.parse(aesKey);
+      const iv = CryptoJS.enc.Utf8.parse(aesIv);
+      let srcs = CryptoJS.enc.Utf8.parse(word);
+      let encrypted = CryptoJS.AES.encrypt(srcs, key, { iv: iv, mode: CryptoJS.mode.CBC, padding: CryptoJS.pad.Pkcs7 });
+      let hexStr = encrypted.ciphertext.toString();
+      return CryptoJS.enc.Base64.stringify(CryptoJS.enc.Hex.parse(hexStr));
+    }
+
+    function doWebLogin() {
+      var pValue = $('#login_password').val();
+      if (!pValue) {
+        $('#login_error').text('Please enter your password').show();
+        return;
+      }
+      var $btn = $('#btn_login');
+      $btn.prop('disabled', true).text('Verifying...');
+      $('#login_error').hide();
+
+      $.post('/login', { password: encrypt(pValue) }, function(res) {
+        if (res.code === '1') {
+          $('#login_password').val('');
+          checkAuth();
+        } else {
+          $('#login_error').text('Password error').show();
+          $btn.prop('disabled', false).text('Confirm');
+          $('#login_password').val('');
+        }
+      }, 'json').fail(function() {
+        $('#login_error').text('Network error').show();
+        $btn.prop('disabled', false).text('Confirm');
+      });
+    }
+
+    // Enter key on password field triggers login
+    $(document).on('keydown', '#login_password', function(e) {
+      if (e.key === 'Enter') doWebLogin();
+    });
+
+    function checkAuth() {
+      $.get('/api/check_auth', function(res) {
+        if (res.authenticated) {
+          $('#login_overlay').addClass('hidden');
+        } else {
+          $('#login_overlay').removeClass('hidden');
+          $('#login_password').focus();
+        }
+      }).fail(function() {
+        $('#login_overlay').removeClass('hidden');
+      });
+    }
+
+    // ─── Periodic auth check (detect session expiry) ──────────────
+    setInterval(checkAuth, 30000);
+
+    // ─── Initial auth check on page load ─────────────────────────
+    $(checkAuth);
+  </script>
   <script>
     layui.use(['element', 'jquery'], function () {
       var $ = layui.$;
