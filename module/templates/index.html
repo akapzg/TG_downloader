@@ -392,7 +392,9 @@
 
     @media (max-width: 768px) {
       .toggle-btn { padding: 8px 18px; font-size: 13px; }
-      .tab-btn { padding: 8px 16px; font-size: 13px; }
+      .tab-btn { padding: 8px 16px; font-size: 13px; white-space: nowrap; }
+      .layui-table tbody td { padding: 10px 12px !important; font-size: 12px !important; }
+      .layui-table thead th { padding: 10px 12px !important; font-size: 11px !important; }
     }
   </style>
 </head>
@@ -418,7 +420,7 @@
     <div class="main-card mb-6">
       <div class="flex flex-col sm:flex-row sm:justify-between sm:items-center px-6 pt-5 pb-0">
         <!-- Tabs -->
-        <div class="flex space-x-0" id="tabs">
+        <div class="flex space-x-0 overflow-x-auto pb-1 -mb-1" id="tabs">
           <button class="tab-btn tab-active" data-tab="dashboard" onclick="switchMainTab('dashboard')">
             📊 Dashboard <span id="app_version" class="text-xs text-gray-500 ml-1"></span>
           </button>
@@ -447,7 +449,7 @@
     <!-- ========== DASHBOARD TAB content ========== -->
     <div id="tab_dashboard" class="main-card">
       <!-- Download sub-tabs -->
-      <div class="flex space-x-0 px-6 pt-4 pb-0 border-b border-gray-100" id="download_tabs">
+      <div class="flex space-x-0 overflow-x-auto pb-1 -mb-1 px-6 pt-4 border-b border-gray-100" id="download_tabs">
         <button class="tab-btn tab-active" data-tab="0" onclick="switchTab(0)">
           📥 Downloading
         </button>
