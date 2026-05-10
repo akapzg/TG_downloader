@@ -39,7 +39,7 @@ _login_manager.init_app(_flask_app)
 web_login_users: dict = {}
 deAesCrypt = AesBase64(
     os.environ.get("AES_KEY") or secrets.token_hex(16),
-    os.environ.get("AES_IV") or secrets.token_hex(16),
+    os.environ.get("AES_IV") or secrets.token_hex(8),
 )
 
 # Stores the generated/default AES credentials for the authenticated API
