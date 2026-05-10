@@ -641,6 +641,102 @@ def bot_update():
         "message": "No changes detected.",
     })
 
+# ═══════════════════════════════════════════════════════════════════════
+# Rclone / Cloud upload configuration API
+# ═══════════════════════════════════════════════════════════════════════
+
+@_flask_app.route("/api/rclone/get")
+@login_required
+def rclone_get():
+    """Return current rclone settings."""
+    app = _app_ref
+    if not app:
+        return jsonify({"success": False, "error": "App not ready"}), 500
+
+    cfg = app.cloud_drive_config
+    return jsonify({
+        "success": True,
+        "enable_upload_file": cfg.enable_upload_file,
+        "rclone_path": cfg.rclone_path or "",
+        "remote_dir": cfg.remote_dir or "",
+        "before_upload_file_zip": cfg.before_upload_file_zip,
+        "after_upload_file_delete": cfg.after_upload_file_delete,
+        "upload_adapter": cfg.upload_adapter or "rclone",
+    })
+
+
+@_flask_app.route("/api/rclone/update", methods=["POST"])
+@login_required
+def rclone_update():
+    """Update rclone settings and persist to config file."""
+    app = _app_ref
+    if not app:
+        return jsonify({"success": False, "error": "App not ready"}), 500
+
+    data = request.get_json(force=True, silent=True) or {}
+    changed = False
+    cfg = app.cloud_drive_config
+
+    if "enable_upload_file" in data:
+        val = bool(data["enable_upload_file"])
+        if val != cfg.enable_upload_file:
+            cfg.enable_upload_file = val
+            app.config.setdefault("upload_drive", {})["enable_upload_file"] = val
+            changed = True
+
+    if "rclone_path" in data:
+        val = (data.get("rclone_path") or "").strip()
+        if val and val != cfg.rclone_path:
+            cfg.rclone_path = val
+            app.config.setdefault("upload_drive", {})["rclone_path"] = val
+            changed = True
+
+    if "remote_dir" in data:
+        val = (data.get("remote_dir") or "").strip()
+        if val != cfg.remote_dir:
+            cfg.remote_dir = val
+            app.config.setdefault("upload_drive", {})["remote_dir"] = val
+            changed = True
+
+    if "before_upload_file_zip" in data:
+        val = bool(data["before_upload_file_zip"])
+        if val != cfg.before_upload_file_zip:
+            cfg.before_upload_file_zip = val
+            app.config.setdefault("upload_drive", {})["before_upload_file_zip"] = val
+            changed = True
+
+    if "after_upload_file_delete" in data:
+        val = bool(data["after_upload_file_delete"])
+        if val != cfg.after_upload_file_delete:
+            cfg.after_upload_file_delete = val
+            app.config.setdefault("upload_drive", {})["after_upload_file_delete"] = val
+            changed = True
+
+    if "upload_adapter" in data:
+        val = (data.get("upload_adapter") or "rclone").strip()
+        if val != cfg.upload_adapter:
+            cfg.upload_adapter = val
+            app.config.setdefault("upload_drive", {})["upload_adapter"] = val
+            changed = True
+
+    if changed:
+        try:
+            with open(app.config_file, "w", encoding="utf-8") as f:
+                from ruamel import yaml as _ruamel_yaml
+                _yaml = _ruamel_yaml.YAML()
+                _yaml.dump(app.config, f)
+            return jsonify({
+                "success": True,
+                "message": "Settings saved. Changes will take effect on next restart.",
+            })
+        except Exception as e:
+            return jsonify({"success": False, "error": f"Failed to save config: {e}"}), 500
+
+    return jsonify({
+        "success": True,
+        "message": "No changes detected.",
+    })
+
 @_flask_app.route("/api/version")
 def get_version():
     """Get project version."""

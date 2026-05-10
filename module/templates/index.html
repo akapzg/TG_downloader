@@ -430,6 +430,9 @@
           <button class="tab-btn" data-tab="bot" onclick="switchMainTab('bot')">
             🤖 Bot
           </button>
+          <button class="tab-btn" data-tab="rclone" onclick="switchMainTab('rclone')">
+            ☁️ Rclone
+          </button>
           <button class="tab-btn" data-tab="logs" onclick="switchMainTab('logs')">
             📝 Logs
           </button>
@@ -598,6 +601,91 @@
           <div class="inline-block animate-spin text-4xl mb-3">⏳</div>
           <p class="text-gray-400 text-sm">Loading account information...</p>
         </div>
+      </div>
+    </div>
+
+    <!-- ========== RCLONE TAB content ========== -->
+    <div id="tab_rclone" class="main-card hidden">
+      <div class="p-6 min-h-[400px]">
+
+        <div id="rclone_settings_form">
+          <h2 class="text-lg font-semibold text-gray-800 mb-4">☁️ Cloud Upload Configuration</h2>
+          <p class="text-sm text-gray-400 mb-6">
+            Upload downloaded files to cloud storage via rclone or aligo.
+            Changes are saved to the config file and take effect after restart.
+          </p>
+
+          <!-- Enable toggle -->
+          <div class="mb-5 flex items-center justify-between">
+            <div>
+              <label class="account-label block">Enable Cloud Upload</label>
+              <p class="text-xs text-gray-400">Turn on to upload files after download</p>
+            </div>
+            <label class="relative inline-flex items-center cursor-pointer">
+              <input type="checkbox" id="rclone_enable" class="sr-only peer" onchange="rcloneEnableChanged()">
+              <div class="w-10 h-5 bg-gray-300 peer-focus:ring-2 peer-focus:ring-indigo-300 rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-indigo-600"></div>
+            </label>
+          </div>
+
+          <div id="rclone_fields" class="hidden">
+            <!-- Adapter -->
+            <div class="mb-5">
+              <label class="account-label block mb-1">Upload Adapter</label>
+              <select class="input-field" id="rclone_adapter">
+                <option value="rclone">rclone</option>
+                <option value="aligo">aligo</option>
+              </select>
+              <p class="text-xs text-gray-400 mt-1">Use rclone for most cloud drives; aligo for Aliyun Drive only</p>
+            </div>
+
+            <!-- Rclone path -->
+            <div class="mb-5" id="rclone_path_group">
+              <label class="account-label block mb-1">Rclone Path</label>
+              <input type="text" class="input-field font-mono text-sm" id="rclone_path"
+                     placeholder="/app/rclone/rclone" autocomplete="off">
+              <p class="text-xs text-gray-400 mt-1">Path to the rclone binary (auto-detected in Docker)</p>
+            </div>
+
+            <!-- Remote dir -->
+            <div class="mb-5">
+              <label class="account-label block mb-1">Remote Directory</label>
+              <input type="text" class="input-field font-mono text-sm" id="rclone_remote_dir"
+                     placeholder="myremote:/path/to/upload" autocomplete="off">
+              <p class="text-xs text-gray-400 mt-1">rclone remote name and path, e.g. gdrive:/telegram_downloads</p>
+            </div>
+
+            <!-- Options -->
+            <div class="mb-5 space-y-3">
+              <label class="flex items-center gap-3 cursor-pointer">
+                <input type="checkbox" id="rclone_zip" class="w-4 h-4">
+                <span class="text-sm text-gray-700">Zip file before upload</span>
+              </label>
+              <label class="flex items-center gap-3 cursor-pointer">
+                <input type="checkbox" id="rclone_delete" class="w-4 h-4">
+                <span class="text-sm text-gray-700">Delete local file after upload</span>
+              </label>
+            </div>
+          </div>
+
+          <!-- Action buttons -->
+          <div class="flex items-center gap-3 mt-6">
+            <button class="btn-primary" id="btn_save_rclone" onclick="saveRcloneSettings()">
+              💾 Save Settings
+            </button>
+            <button class="btn-secondary" onclick="loadRcloneSettings()">
+              🔄 Reload
+            </button>
+          </div>
+
+          <div id="rclone_status" class="mt-4 text-sm hidden"></div>
+        </div>
+
+        <!-- Loading spinner -->
+        <div id="rclone_loading" class="text-center py-12 hidden">
+          <div class="inline-block animate-spin text-4xl mb-3">⏳</div>
+          <p class="text-gray-400 text-sm">Loading rclone configuration...</p>
+        </div>
+
       </div>
     </div>
 
@@ -928,6 +1016,7 @@
           $("#tab_dashboard").removeClass("hidden");
           $("#tab_account").addClass("hidden");
           $("#tab_bot").addClass("hidden");
+          $("#tab_rclone").addClass("hidden");
           $("#tab_logs").addClass("hidden");
           $("#toggle_area").show();
           $("#download_tabs").show();
@@ -940,6 +1029,7 @@
           $("#tab_dashboard").addClass("hidden");
           $("#tab_account").removeClass("hidden");
           $("#tab_bot").addClass("hidden");
+          $("#tab_rclone").addClass("hidden");
           $("#tab_logs").addClass("hidden");
           $("#toggle_area").hide();
           $("#download_tabs").hide();
@@ -953,6 +1043,7 @@
           $("#tab_dashboard").addClass("hidden");
           $("#tab_account").addClass("hidden");
           $("#tab_bot").removeClass("hidden");
+          $("#tab_rclone").addClass("hidden");
           $("#tab_logs").addClass("hidden");
           $("#toggle_area").hide();
           $("#download_tabs").hide();
@@ -960,10 +1051,22 @@
           if (accountPollTimer) { clearInterval(accountPollTimer); accountPollTimer = null; }
           // Load bot settings
           loadBotSettings();
+        } else if (tab === 'rclone') {
+          $("#tab_dashboard").addClass("hidden");
+          $("#tab_account").addClass("hidden");
+          $("#tab_bot").addClass("hidden");
+          $("#tab_rclone").removeClass("hidden");
+          $("#tab_logs").addClass("hidden");
+          $("#toggle_area").hide();
+          $("#download_tabs").hide();
+          if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
+          if (accountPollTimer) { clearInterval(accountPollTimer); accountPollTimer = null; }
+          loadRcloneSettings();
         } else if (tab === 'logs') {
           $("#tab_dashboard").addClass("hidden");
           $("#tab_account").addClass("hidden");
           $("#tab_bot").addClass("hidden");
+          $("#tab_rclone").addClass("hidden");
           $("#tab_logs").removeClass("hidden");
           $("#toggle_area").hide();
           $("#download_tabs").hide();
@@ -1262,6 +1365,94 @@
       // ─── Bot status message helper ────────────────────────────────
       function showBotStatus(msg, type) {
         var $el = $("#bot_status");
+        $el.text(msg).removeClass("hidden");
+        if (type === "success") {
+          $el.removeClass("text-red-500").addClass("text-green-600");
+        } else {
+          $el.removeClass("text-green-600").addClass("text-red-500");
+        }
+      }
+
+      // ═══════════════════════════════════════════════════════════════
+      // RCLONE TAB LOGIC
+      // ═══════════════════════════════════════════════════════════════
+
+      window.rcloneEnableChanged = function() {
+        if ($("#rclone_enable").is(":checked")) {
+          $("#rclone_fields").removeClass("hidden");
+        } else {
+          $("#rclone_fields").addClass("hidden");
+        }
+      };
+
+      window.loadRcloneSettings = function() {
+        $("#rclone_loading").removeClass("hidden");
+        $("#rclone_settings_form").addClass("hidden");
+        $("#rclone_status").addClass("hidden");
+
+        $.get("/api/rclone/get", function(res) {
+          var data = typeof res === 'string' ? JSON.parse(res) : res;
+          $("#rclone_loading").addClass("hidden");
+          $("#rclone_settings_form").removeClass("hidden");
+
+          if (data.success) {
+            $("#rclone_enable").prop("checked", data.enable_upload_file);
+            $("#rclone_path").val(data.rclone_path || "");
+            $("#rclone_remote_dir").val(data.remote_dir || "");
+            $("#rclone_adapter").val(data.upload_adapter || "rclone");
+            $("#rclone_zip").prop("checked", data.before_upload_file_zip);
+            $("#rclone_delete").prop("checked", data.after_upload_file_delete);
+            rcloneEnableChanged();
+          } else {
+            showRcloneStatus("Failed to load settings: " + (data.error || "Unknown error"), "error");
+          }
+        }).fail(function() {
+          $("#rclone_loading").addClass("hidden");
+          $("#rclone_settings_form").removeClass("hidden");
+          showRcloneStatus("Failed to load rclone settings (network error)", "error");
+        });
+      };
+
+      window.saveRcloneSettings = function() {
+        var $btn = $("#btn_save_rclone");
+        $btn.prop("disabled", true).text("Saving...");
+        $("#rclone_status").addClass("hidden");
+
+        $.ajax({
+          url: "/api/rclone/update",
+          method: "POST",
+          contentType: "application/json",
+          data: JSON.stringify({
+            enable_upload_file: $("#rclone_enable").is(":checked"),
+            rclone_path: $("#rclone_path").val().trim(),
+            remote_dir: $("#rclone_remote_dir").val().trim(),
+            upload_adapter: $("#rclone_adapter").val(),
+            before_upload_file_zip: $("#rclone_zip").is(":checked"),
+            after_upload_file_delete: $("#rclone_delete").is(":checked"),
+          }),
+          success: function(res) {
+            var data = typeof res === 'string' ? JSON.parse(res) : res;
+            if (data.success) {
+              showRcloneStatus(data.message || "Settings saved successfully", "success");
+            } else {
+              showRcloneStatus("Error: " + (data.error || "Save failed"), "error");
+            }
+            $btn.prop("disabled", false).text("💾 Save Settings");
+          },
+          error: function(xhr) {
+            var msg = "Save failed";
+            try {
+              var err = JSON.parse(xhr.responseText);
+              msg = err.error || msg;
+            } catch(e) {}
+            showRcloneStatus("Error: " + msg, "error");
+            $btn.prop("disabled", false).text("💾 Save Settings");
+          }
+        });
+      };
+
+      function showRcloneStatus(msg, type) {
+        var $el = $("#rclone_status");
         $el.text(msg).removeClass("hidden");
         if (type === "success") {
           $el.removeClass("text-red-500").addClass("text-green-600");
