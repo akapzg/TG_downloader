@@ -16,21 +16,23 @@
 
 ### 快速部署
 
-1. **拉取与启动**：
-   直接使用 GitHub Container Registry 提供的镜像进行部署。
+1. **下载配置文件**：
+   从 GitHub 仓库下载最新的 `docker-compose.yaml`。
 
    ```bash
-   # 创建项目目录
    mkdir -p ~/tg_downloader && cd ~/tg_downloader
-   
-   # 下载 docker-compose.yaml
    wget https://raw.githubusercontent.com/akapzg/TG_downloader/master/docker-compose.yaml
-   
-   # 启动服务
+   ```
+
+2. **拉取与启动**：
+   从 GitHub Container Registry 拉取预构建镜像并启动服务。
+
+   ```bash
+   docker compose pull
    docker compose up -d
    ```
 
-2. **配置认证**：
+3. **配置认证**：
    *   服务启动后，访问 `http://<服务器IP>:5000`。
    *   在 `Account` 选项卡中按照提示输入手机号与验证码进行 Telegram 登录认证。
    *   认证成功后，程序会自动保存 session 并开始工作。
