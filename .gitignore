@@ -50,6 +50,7 @@ lib64
 #Telegram Sessions
 *.session
 *.session-journal
+sessions/
 
 #Downloaded documents
 documents/

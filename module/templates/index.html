@@ -1,313 +1,1140 @@
 <!DOCTYPE html>
-<html>
-
+<html lang="zh-CN">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Telegram Media Downloader</title>
+  <script src="https://cdn.tailwindcss.com"></script>
   <link href="static/layui/css/layui.css" rel="stylesheet">
-  <link href="static/css/index.css" rel="stylesheet">
+
+  <!-- ==================== Custom CSS: override Layui defaults ==================== -->
   <style>
+    /* ---------- Page foundation ---------- */
+    * { box-sizing: border-box; }
     body {
-      padding: 6px 16px;
+      background: linear-gradient(135deg, #f0f2f5 0%, #e8ecf1 100%);
+      font-family: 'Inter', 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', system-ui, sans-serif;
+      min-height: 100vh;
+    }
+
+    /* ---------- Card container ---------- */
+    .main-card {
+      background: #fff;
+      border-radius: 16px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.04), 0 4px 16px rgba(0,0,0,0.06);
+      overflow: hidden;
+    }
+
+    /* ---------- Tab buttons ---------- */
+    .tab-btn {
+      position: relative;
+      padding: 10px 24px;
+      font-size: 15px;
+      font-weight: 500;
+      color: #6b7280;
+      background: transparent;
+      border: none;
+      cursor: pointer;
+      transition: color 0.2s ease;
+    }
+    .tab-btn::after {
+      content: '';
+      position: absolute;
+      left: 50%; bottom: 0;
+      transform: translateX(-50%);
+      width: 0; height: 3px;
+      background: #4f6ef7;
+      border-radius: 3px 3px 0 0;
+      transition: width 0.25s ease;
+    }
+    .tab-active {
+      color: #4f6ef7 !important;
+    }
+    .tab-active::after {
+      width: 60%;
+    }
+    .tab-btn:hover { color: #374151; }
+
+    /* ---------- Toggle button ---------- */
+    .toggle-btn {
+      padding: 10px 28px;
+      font-size: 14px;
+      font-weight: 600;
+      border-radius: 10px;
+      border: none;
+      cursor: pointer;
+      transition: all 0.25s ease;
+      letter-spacing: 0.02em;
+    }
+    .toggle-btn.pause {
+      background: #fee2e2; color: #dc2626;
+    }
+    .toggle-btn.pause:hover { background: #fecaca; }
+    .toggle-btn.continue {
+      background: #dcfce7; color: #16a34a;
+    }
+    .toggle-btn.continue:hover { background: #bbf7d0; }
+
+    /* ---------- Layui table overrides: modernise with Tailwind-like look ---------- */
+    .layui-table {
+      width: 100%;
+      border-collapse: collapse;
+      border: none !important;
+      background: transparent !important;
+      margin: 0 !important;
+    }
+    .layui-table thead {
+      background: transparent !important;
+    }
+    .layui-table thead tr {
+      background: #f8fafc !important;
+      border-bottom: 2px solid #e5e7eb;
+    }
+    .layui-table thead th {
+      padding: 14px 16px !important;
+      font-size: 12px !important;
+      font-weight: 600 !important;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: #6b7280 !important;
+      border: none !important;
+      background: transparent !important;
+      text-align: left !important;
+    }
+    .layui-table tbody tr {
+      border-bottom: 1px solid #f3f4f6;
+      transition: background 0.15s ease;
+    }
+    .layui-table tbody tr:hover {
+      background: #f9fafb !important;
+    }
+    .layui-table tbody td {
+      padding: 12px 16px !important;
+      font-size: 13px !important;
+      color: #374151 !important;
+      border: none !important;
+      background: transparent !important;
+      vertical-align: middle !important;
+    }
+    .layui-table-cell {
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      max-width: 0;
+      display: block;
+    }
+
+    /* ---------- Progress bar ---------- */
+    .progress-wrapper {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      min-width: 140px;
+    }
+    .progress-bar-outer {
+      flex: 1;
+      height: 6px;
+      background: #e5e7eb;
+      border-radius: 999px;
+      overflow: hidden;
+      min-width: 80px;
+    }
+    .progress-bar-inner {
+      height: 100%;
+      background: linear-gradient(90deg, #4f6ef7, #7c8cf8);
+      border-radius: 999px;
+      transition: width 0.4s ease;
+    }
+    .progress-pct {
+      font-size: 12px;
+      font-weight: 600;
+      color: #6b7280;
+      min-width: 42px;
+      text-align: right;
+    }
+
+    /* ---------- Speed indicator ---------- */
+    .speed-badge {
+      display: inline-block;
+      padding: 3px 10px;
+      font-size: 12px;
+      font-weight: 600;
+      border-radius: 999px;
+      background: #eef2ff;
+      color: #4f6ef7;
+    }
+
+    /* ---------- Footer ---------- */
+    .app-footer {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 12px 0;
+      font-size: 13px;
+      color: #9ca3af;
+    }
+    .footer-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 12px;
+      background: #f9fafb;
+      border-radius: 999px;
+      font-size: 12px;
+    }
+
+    /* ---------- Empty state ---------- */
+    .empty-state {
+      text-align: center;
+      padding: 60px 20px;
+      color: #9ca3af;
+    }
+    .empty-state .icon {
+      font-size: 48px;
+      margin-bottom: 12px;
+      opacity: 0.5;
+    }
+    .empty-state .text {
+      font-size: 14px;
+      font-weight: 500;
+    }
+
+    /* ---------- Chat ID pill ---------- */
+    .chat-pill {
+      display: inline-block;
+      padding: 2px 10px;
+      font-size: 12px;
+      font-weight: 600;
+      border-radius: 6px;
+      background: #f3f4f6;
+      color: #4b5563;
+      font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+    }
+
+    /* ---------- Account card styles ---------- */
+    .account-card {
+      background: #f8fafc;
+      border: 1px solid #e5e7eb;
+      border-radius: 12px;
+      padding: 20px;
+    }
+    .account-avatar {
+      width: 56px;
+      height: 56px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, #4f6ef7, #7c8cf8);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 22px;
+      font-weight: 700;
+      color: #fff;
+    }
+    .account-label {
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: #9ca3af;
+      margin-bottom: 2px;
+    }
+    .account-value {
+      font-size: 14px;
+      font-weight: 500;
+      color: #1f2937;
+    }
+    .btn-primary {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 10px 20px;
+      font-size: 14px;
+      font-weight: 600;
+      border-radius: 10px;
+      border: none;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      background: #4f6ef7;
+      color: #fff;
+    }
+    .btn-primary:hover { background: #3b5de7; }
+    .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+    .btn-danger {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 10px 20px;
+      font-size: 14px;
+      font-weight: 600;
+      border-radius: 10px;
+      border: none;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      background: #fee2e2;
+      color: #dc2626;
+    }
+    .btn-danger:hover { background: #fecaca; }
+    .btn-secondary {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 8px 16px;
+      font-size: 13px;
+      font-weight: 500;
+      border-radius: 8px;
+      border: 1px solid #d1d5db;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      background: #fff;
+      color: #374151;
+    }
+    .btn-secondary:hover { background: #f9fafb; }
+    .input-field {
+      width: 100%;
+      padding: 10px 14px;
+      font-size: 14px;
+      border: 1px solid #d1d5db;
+      border-radius: 10px;
+      outline: none;
+      transition: border-color 0.2s ease, box-shadow 0.2s ease;
+      background: #fff;
+    }
+    .input-field:focus {
+      border-color: #4f6ef7;
+      box-shadow: 0 0 0 3px rgba(79, 110, 247, 0.15);
+    }
+    .auth-step {
+      margin-bottom: 16px;
+    }
+    .status-dot {
+      display: inline-block;
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      margin-right: 6px;
+    }
+    .status-dot.online { background: #22c55e; }
+    .status-dot.offline { background: #9ca3af; }
+
+    /* ---------- Responsive ---------- */
+    @media (max-width: 768px) {
+      .toggle-btn { padding: 8px 18px; font-size: 13px; }
+      .tab-btn { padding: 8px 16px; font-size: 13px; }
     }
   </style>
 </head>
 
-<body>
-  <div class="layui-tab" lay-filter="telegram_media_downloader">
-    <div class="header-title layui-tab-brief">
-      <ul class="layui-tab-title">
-        <li class="layui-this">Downloading</li>
-        <li>Downloaded</li>
-        <!-- <li>Config</li> -->
-      </ul>
-      <div class="stop-btn" id="download_state" data-value="{{ download_state }}" onclick="download_state_change(this)"> {{ download_state }} </div>
-    </div>
-    <div class="layui-tab-content" style="padding: 0;">
-      <div class="layui-tab-item layui-show">
-        <table class="layui-hide" id="download_list" lay-filter="download_list"></table>
-      </div>
-      <div class="layui-tab-item">
-        <table class="layui-hide" id="already_download_list" lay-filter="already_download_list"></table>
-      </div>
-      <!-- <div class="layui-tab-item">
-        <form class="layui-form" action="">
-        under development
-      </form>
-      </div> -->
-    </div>
-  </div>
+<body class="min-h-screen flex flex-col">
+  <!-- ========== Page wrapper (Tailwind layout) ========== -->
+  <div class="max-w-6xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 flex-1">
 
-  <div class="layui-footer">
-    <div class="layui-row layui-col-space1">
-      <div class="layui-col-md2">
-        <p>Telegram Media Downloader V <b id="app_version" style="color: #009688;">undefined</b>
-      </div>
-      <div class="layui-col-md7">
-      </div>
-      <div class="layui-col-md3">
-        <div style="padding: 5px; float: right;">
-          <!-- <i class="layui-icon layui-icon-upload-circle" style="font-size: 16px; color: #1E9FFF; font-weight: 700;">
-            <i id="upload_speed_title" style="color: black;"> 0.00 B/s </i>
-          </i> -->
-
-          <i class="layui-icon layui-icon-download-circle"
-            style="font-size: 16px; color: #5FB878; font-weight: 700; margin-left: 15px;">
-            <i id="download_speed_title" style="color: black;"> 0.00 B/s </i>
-          </i>
-
+    <!-- ========== Header card ========== -->
+    <div class="main-card mb-6">
+      <div class="flex flex-col sm:flex-row sm:justify-between sm:items-center px-6 pt-5 pb-0">
+        <!-- Tabs -->
+        <div class="flex space-x-0" id="tabs">
+          <button class="tab-btn tab-active" data-tab="dashboard" onclick="switchMainTab('dashboard')">
+            📊 Dashboard <span id="app_version" class="text-xs text-gray-500 ml-1"></span>
+          </button>
+          <button class="tab-btn" data-tab="account" onclick="switchMainTab('account')">
+            👤 Account
+          </button>
+          <button class="tab-btn" data-tab="bot" onclick="switchMainTab('bot')">
+            🤖 Bot
+          </button>
+          <button class="tab-btn" data-tab="logs" onclick="switchMainTab('logs')">
+            📝 Logs
+          </button>
+        </div>
+        <!-- Toggle (Dashboard only) -->
+        <div class="pt-3 sm:pt-0 pb-4 sm:pb-0" id="toggle_area">
+          <button id="download_state"
+                  data-value="{{ download_state }}"
+                  onclick="download_state_change(this)"
+                  class="toggle-btn {{ 'pause' if download_state == 'pause' else 'continue' }}">
+            {{ '⏸ Pause' if download_state == 'pause' else '▶ Resume' }}
+          </button>
         </div>
       </div>
     </div>
+
+    <!-- ========== DASHBOARD TAB content ========== -->
+    <div id="tab_dashboard" class="main-card">
+      <!-- Download sub-tabs -->
+      <div class="flex space-x-0 px-6 pt-4 pb-0 border-b border-gray-100" id="download_tabs">
+        <button class="tab-btn tab-active" data-tab="0" onclick="switchTab(0)">
+          📥 Downloading
+        </button>
+        <button class="tab-btn" data-tab="1" onclick="switchTab(1)">
+          ✅ Downloaded
+        </button>
+      </div>
+      <div id="content_area" class="p-0 min-h-[400px] overflow-x-auto">
+        <!-- Layui table: preserved DOM structure with id="download_list" -->
+        <table id="download_list" class="layui-table" lay-filter="download_list">
+          <thead>
+            <tr>
+              <th>Channel</th>
+              <th>ID</th>
+              <th>File Name</th>
+              <th>Size</th>
+              <th>Progress</th>
+              <th>Speed</th>
+            </tr>
+          </thead>
+          <tbody id="list_body">
+            <!-- Data rows injected by JS -->
+          </tbody>
+        </table>
+
+        <!-- Empty state -->
+        <div id="empty_state" class="empty-state hidden">
+          <div class="icon">📭</div>
+          <div class="text">No tasks yet</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ========== ACCOUNT TAB content ========== -->
+    <div id="tab_account" class="main-card hidden">
+      <div class="p-6 min-h-[400px]">
+
+        <!-- Logged-in view -->
+        <div id="account_logged_in" class="hidden">
+          <div class="flex flex-col sm:flex-row items-start sm:items-center gap-4 mb-6">
+            <div class="account-avatar" id="account_initials">?</div>
+            <div class="flex-1">
+              <h2 class="text-xl font-semibold text-gray-800" id="account_name">---</h2>
+              <div class="flex items-center gap-2 mt-1">
+                <span class="status-dot online"></span>
+                <span class="text-sm text-green-600 font-medium">Connected</span>
+              </div>
+            </div>
+            <div>
+              <button class="btn-danger" onclick="doLogout()">
+                🚪 Logout
+              </button>
+            </div>
+          </div>
+          <div class="account-card grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            <div>
+              <div class="account-label">User ID</div>
+              <div class="account-value font-mono" id="account_user_id">---</div>
+            </div>
+            <div>
+              <div class="account-label">Username</div>
+              <div class="account-value" id="account_username">---</div>
+            </div>
+            <div>
+              <div class="account-label">Phone Number</div>
+              <div class="account-value" id="account_phone">---</div>
+            </div>
+            <div>
+              <div class="account-label">First Name</div>
+              <div class="account-value" id="account_first_name">---</div>
+            </div>
+            <div>
+              <div class="account-label">Last Name</div>
+              <div class="account-value" id="account_last_name">---</div>
+            </div>
+            <div>
+              <div class="account-label">Account Type</div>
+              <div class="account-value" id="account_type">---</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Logged-out / Login view -->
+        <div id="account_logged_out" class="hidden">
+          <div class="text-center mb-6">
+            <div class="text-5xl mb-3">🔒</div>
+            <h2 class="text-xl font-semibold text-gray-700 mb-1">Not Logged In</h2>
+            <p class="text-sm text-gray-400">Login to your Telegram account to start downloading</p>
+          </div>
+
+          <!-- Step 1: Phone -->
+          <div id="auth_step_phone" class="max-w-md mx-auto">
+            <div class="auth-step">
+              <label class="account-label block mb-1">Phone Number</label>
+              <input type="text" class="input-field" id="tg_phone"
+                     placeholder="+8613800138000" autocomplete="tel">
+              <p class="text-xs text-gray-400 mt-1">International format with country code</p>
+            </div>
+            <button class="btn-primary w-full justify-center" id="btn_send_code" onclick="sendCode()">
+              📱 Send Verification Code
+            </button>
+            <div id="phone_error" class="text-red-500 text-sm mt-2 hidden"></div>
+          </div>
+
+          <!-- Step 2: Code -->
+          <div id="auth_step_code" class="max-w-md mx-auto hidden">
+            <div class="auth-step">
+              <label class="account-label block mb-1">Verification Code</label>
+              <input type="text" class="input-field" id="tg_code"
+                     placeholder="12345" autocomplete="one-time-code" maxlength="10">
+              <p class="text-xs text-gray-400 mt-1">Enter the code sent to your Telegram app or SMS</p>
+            </div>
+            <div class="flex gap-2">
+              <button class="btn-secondary flex-1 justify-center" onclick="backToPhone()">
+                ← Back
+              </button>
+              <button class="btn-primary flex-1 justify-center" id="btn_verify_code" onclick="verifyCode()">
+                ✓ Verify
+              </button>
+            </div>
+            <div id="code_error" class="text-red-500 text-sm mt-2 hidden"></div>
+          </div>
+
+          <!-- Step 3: 2FA -->
+          <div id="auth_step_2fa" class="max-w-md mx-auto hidden">
+            <div class="auth-step">
+              <label class="account-label block mb-1">Two-Factor Password</label>
+              <input type="password" class="input-field" id="tg_2fa_password"
+                     placeholder="Your 2FA password" autocomplete="current-password">
+              <p class="text-xs text-gray-400 mt-1">Your account has 2-step verification enabled</p>
+            </div>
+            <div class="flex gap-2">
+              <button class="btn-secondary flex-1 justify-center" onclick="backToPhone()">
+                ← Cancel
+              </button>
+              <button class="btn-primary flex-1 justify-center" id="btn_verify_2fa" onclick="verify2FA()">
+                🔐 Unlock
+              </button>
+            </div>
+            <div id="2fa_error" class="text-red-500 text-sm mt-2 hidden"></div>
+          </div>
+        </div>
+
+        <!-- Loading spinner -->
+        <div id="account_loading" class="text-center py-12 hidden">
+          <div class="inline-block animate-spin text-4xl mb-3">⏳</div>
+          <p class="text-gray-400 text-sm">Loading account information...</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- ========== LOGS TAB content ========== -->
+    <div id="tab_logs" class="main-card hidden">
+      <div class="p-6">
+        <h3 class="text-lg font-semibold text-gray-700 mb-4">System Logs</h3>
+        <pre id="log_content" class="bg-gray-900 text-green-400 p-4 rounded-lg h-[500px] overflow-y-auto font-mono text-sm">Loading logs...</pre>
+      </div>
+    </div>
+    <div id="tab_bot" class="main-card hidden">
+      <div class="p-6 min-h-[400px]">
+
+        <!-- Bot settings form -->
+        <div id="bot_settings_form">
+          <h2 class="text-lg font-semibold text-gray-800 mb-4">🤖 Bot Configuration</h2>
+          <p class="text-sm text-gray-400 mb-6">
+            Configure the Telegram bot that manages downloads.
+            Changes are saved to the config file and take effect after restart.
+          </p>
+
+          <!-- Bot Token -->
+          <div class="mb-5">
+            <label class="account-label block mb-1">Bot Token</label>
+            <input type="text" class="input-field font-mono text-sm" id="bot_token"
+                   placeholder="1234567890:ABCdefGHIjklMNOpqrsTUVwxyz"
+                   autocomplete="off">
+            <p class="text-xs text-gray-400 mt-1">
+              Obtain from
+              <a href="https://t.me/BotFather" target="_blank" class="text-blue-500 underline">@BotFather</a>
+            </p>
+          </div>
+
+          <!-- Allowed User IDs -->
+          <div class="mb-5">
+            <label class="account-label block mb-1">Allowed User IDs</label>
+            <textarea class="input-field font-mono text-sm" id="allowed_user_ids"
+                      rows="4" style="resize: vertical; min-height: 80px;"
+                      placeholder="123456789, 987654321"></textarea>
+            <p class="text-xs text-gray-400 mt-1">
+              Comma, space, or newline separated user IDs authorized to use the bot.
+              Leave empty to allow all users.
+            </p>
+          </div>
+
+          <!-- Action buttons -->
+          <div class="flex items-center gap-3 mt-6">
+            <button class="btn-primary" id="btn_save_bot" onclick="saveBotSettings()">
+              💾 Save Settings
+            </button>
+            <button class="btn-secondary" onclick="loadBotSettings()">
+              🔄 Reload
+            </button>
+          </div>
+
+          <!-- Status message -->
+          <div id="bot_status" class="mt-4 text-sm hidden"></div>
+        </div>
+
+        <!-- Loading spinner -->
+        <div id="bot_loading" class="text-center py-12 hidden">
+          <div class="inline-block animate-spin text-4xl mb-3">⏳</div>
+          <p class="text-gray-400 text-sm">Loading bot configuration...</p>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- ========== Footer ========== -->
+    <footer class="app-footer">
+      <div class="footer-badge">
+        <span>🚀</span>
+        <span id="app_version">Loading...</span>
+      </div>
+      <div class="footer-badge">
+        <span>⚡</span>
+        <span id="download_speed_title">0.00 B/s</span>
+      </div>
+    </footer>
   </div>
 
+  <!-- ========== Scripts ========== -->
   <script src="static/layui/layui.js"></script>
   <script>
-
-    layui.use(['table', 'element'], function () {
-      var table = layui.table;
-      var element = layui.element;
-      var layer = layui.layer;
+    layui.use(['element', 'jquery'], function () {
       var $ = layui.$;
-      var already_download_list_data = new Array()
-      var download_list_table_data = new Array()
+      var currentMainTab = 'dashboard';  // dashboard | account
+      var currentTab = 0;                // 0 = Downloading, 1 = Downloaded
+      var pollTimer = null;
+      var accountPollTimer = null;
 
-      $.ajax({
-        url: "get_app_version"
-        , type: "get"
-        , async: false
-        , dataType: "text"
-        , success: function (result) {
-          $("#app_version").html(result)
-        }
+      // ─── Load version ────────────────────────────────────────────
+      $.get("get_app_version", function(res) {
+        $("#app_version").text(res);
+      }).fail(function() {
+        $("#app_version").text("---");
       });
 
-      download_state_change = function(e) {
-        $.ajax({
-        url: "set_download_state?state=" + e.dataset.value
-        , type: "post"
-        , async: false
-        , dataType: "text"
-        , success: function (result) {
-          $("#download_state").html(result)
-          e.dataset.value=result
-        }
-      });
-    }
-
-      tableIns = table.render({
-        elem: '#download_list'
-        , data: download_list_table_data
-        , title: 'download_list'
-        , height: 'full-160'
-        , limit: 10000
-        , cols: [[
-          { field: 'chat', title: 'chat', width: 100 },
-          { field: 'id', title: 'id', width: 100 }
-          , { field: 'filename', title: 'file name', align: 'center' }
-          , { field: 'total_size', title: 'total byte', align: 'center' }
-          , {
-            field: 'download_progress', title: 'download progress', align: 'center', templet: function (d) {
-              var ys = '';
-              if (30 < d.download_progress && d.download_progress < 100) {
-                ys = 'layui-bg-blue'
-              } else if (0 < d.download_progress && d.download_progress <= 30) {
-                ys = 'layui-bg-red'
-              }
-              else if (100 == d.download_progress) {
-                ys = 'layui-bg-green'
-              }
-              return '<div class="layui-progress layui-progress-big" lay-showpercent="true"  lay-filter="down-' + d.id + '"><div class="layui-progress-bar ' + ys + '" lay-percent="' + d.download_progress + '%"></div></div>'
-            }
+      // ─── Poll download status (global speed) ─────────────────────
+      var pollStatus = function() {
+        $.get("get_download_status", function(res) {
+          try {
+            var data = typeof res === 'string' ? JSON.parse(res) : res;
+            $("#download_speed_title").text(data.download_speed || "0.00 B/s");
+          } catch(e) {
+            $("#download_speed_title").text("0.00 B/s");
           }
-          , { field: 'download_speed', title: 'download speed', align: 'center' }
-        ]]
-        , done: function (res, currentCount) {
-          element.render()
-        }
-      });
+        }).fail(function() {
+          $("#download_speed_title").text("---");
+        });
+      };
+      setInterval(pollStatus, 2000);
+      pollStatus();
 
-      table.render({
-        elem: '#already_download_list'
-        , data: already_download_list_data
-        , title: 'already_download_list'
-        , height: 'full-160'
-        , limit: 10000
-        , cols: [[
+      // ─── Fetch and render download list ──────────────────────────
+      var fetchList = function() {
+        var alreadyDown = currentTab === 1; // Tab 1 = already downloaded
+        $.get("get_download_list", { already_down: alreadyDown }, function(res) {
+          var data;
+          try {
+            data = typeof res === 'string' ? JSON.parse(res) : res;
+          } catch(e) {
+            data = [];
+          }
 
-          { field: 'id', title: 'id', width: 100 }
-          , { field: 'filename', title: 'file name', align: 'center' }
-          , { field: 'total_size', title: 'total size', align: 'center' }
-          , { field: 'save_path', title: 'save path', align: 'center' }
-        ]], done: function (res, currentCount) {
-          element.render()
-        }
-      });
+          var $tbody = $("#list_body");
+          var $empty = $("#empty_state");
 
-      function update_download_list() {
-        $.ajax({
-          url: "get_download_list?already_down=false"
-          , type: "get"
-          , async: false
-          , dataType: "json"
-          , success: function (result) {
-            // first remove finish and update
-            for (var j = 0, len2 = download_list_table_data.length; j < len2; j++) {
-              find_iter = false
-              for (var i = 0, len = result.length; i < len; i++) {
-                if (result[i].chat == download_list_table_data[j].chat && result[i].id == download_list_table_data[j].id) {
-                  download_list_table_data[j].download_progress = result[i].download_progress
-                  var progress = download_list_table_data[j].download_progress
-                  element.progress('down-' + result[i].chat + '-' + result[i].id, progress + '%');
+          if (!data.length) {
+            $tbody.empty();
+            $empty.removeClass("hidden");
+            return;
+          }
+          $empty.addClass("hidden");
 
-                  var download_speed_obj = $('div[lay-filter="down_speed-' + result[i].chat + '-' + result[i].id + '"]')
-                  download_speed_obj.html(result[i].download_speed)
+          var rowsHtml = '';
+          for (var i = 0; i < data.length; i++) {
+            var item    = data[i];
+            var chat    = escapeHtml(item.chat || '---');
+            var fid     = escapeHtml(String(item.id || '---'));
+            var fname   = escapeHtml(item.filename || '---');
+            var size    = escapeHtml(item.total_size || '---');
+            var speed   = escapeHtml(item.download_speed || '0 B/s');
+            var pct     = parseFloat(item.download_progress) || 0;
 
-                  if (progress == 100) {
-                    var device_obj = $('div[lay-filter="down-' + result[i].chat + '-' + result[i].id + '"] div')
-                    device_obj.removeClass("layui-bg-blue")
-                    device_obj.addClass("layui-bg-green")
-                    obj = $('div[lay-id="download_list"]  tr[data-index="' + result[i].chat + '-' + result[i].id + '"]')
-                    obj.remove()
-                  }
-                  find_iter = true
-                  break
-                }
-              }
+            rowsHtml +=
+              '<tr data-key="' + fid + '" data-chat="' + chat + '">' +
+                '<td><span class="chat-pill">' + chat + '</span></td>' +
+                '<td>' + fid + '</td>' +
+                '<td><span class="layui-table-cell" style="max-width:220px">' + fname + '</span></td>' +
+                '<td>' + size + '</td>' +
+                '<td>' +
+                  '<div class="progress-wrapper">' +
+                    '<div class="progress-bar-outer">' +
+                      '<div class="progress-bar-inner" style="width:' + pct + '%"></div>' +
+                    '</div>' +
+                    '<span class="progress-pct">' + pct + '%</span>' +
+                  '</div>' +
+                '</td>' +
+                '<td><span class="speed-badge">' + speed + '</span></td>' +
+              '</tr>';
+          }
+          $tbody.html(rowsHtml);
+        }).fail(function() {
+          // silent fail — keep existing rows
+        });
+      };
 
-            }
+      // ─── Download-sub tab switching ──────────────────────────────
+      window.switchTab = function(index) {
+        if (currentTab === index) return;
+        currentTab = index;
 
-            // new task
-            for (var i = 0, len = result.length; i < len; i++) {
-              find_iter = false
-              for (var j = 0, len2 = download_list_table_data.length; j < len2; j++) {
-                if (result[i].chat == download_list_table_data[j].chat && result[i].id == download_list_table_data[j].id) {
-                  find_iter = true
-                  break
-                }
-              }
-
-              if (find_iter || result[i].download_progress == 100) {
-                continue;
-              }
-              // not found
-              obj = $('div[lay-id="download_list"]  .layui-table-body .layui-table tbody')
-              var tr = ' <tr data-index="' + result[i].chat + '-' + result[i].id + '">' +
-                '<td data-field="id" data-key="1-0-0" class=""><div class="layui-table-cell laytable-cell-1-0-0">' + result[i].chat + '</div></td>' +
-                '<td data-field="id" data-key="1-0-1" class=""><div class="layui-table-cell laytable-cell-1-0-1">' + result[i].id + '</div></td>' +
-                '<td data-field="filename" data-key="1-0-2" class=""><div class="layui-table-cell laytable-cell-1-0-2" align="center">' + result[i].filename + '</div></td>' +
-                '<td data-field="total_size" data-key="1-0-3" class=""><div class="layui-table-cell laytable-cell-1-0-3" align="center">' + result[i].total_size + '</div></td>' +
-                '<td data-field="download_progress" data-key="1-0-4" data-content="' + result[i].download_progress + '" class=""><div class="layui-table-cell laytable-cell-1-0-4" align="center"><div class="layui-progress layui-progress-big" lay-showpercent="true" lay-filter="down-' + result[i].chat + '-' + result[i].id + '"><div class="layui-progress-bar layui-bg-blue" lay-percent="' + result[i].download_progress + '%" style="width: ' + result[i].download_progress + '%;"><span class="layui-progress-text">' + result[i].download_progress + '%</span></div></div></div></td>' +
-                '<td data-field="download_speed" data-key="1-0-5" class=""><div class="layui-table-cell laytable-cell-1-0-5" align="center"lay-filter="down_speed-' + result[i].chat + '-' + result[i].id + '">' + result[i].download_speed + '</div></td>' +
-                "  </tr>";
-              obj.append(tr)
-              download_list_table_data.push(result[i])
-
-              if (download_list_table_data.length == 1) {
-                $(".layui-none").remove()
-              }
-
-              element.render()
-
-            }
-
-            element.render()
+        $("#download_tabs button").each(function(i) {
+          if (i === index) {
+            $(this).addClass("tab-active");
+          } else {
+            $(this).removeClass("tab-active");
           }
         });
 
+        fetchList();
       };
 
+      // ─── Poll list periodically ──────────────────────────────────
+      var startPolling = function() {
+        if (pollTimer) clearInterval(pollTimer);
+        fetchList();
+        pollTimer = setInterval(fetchList, 3000);
+      };
+      startPolling();
 
-      function update_download_status() {
-        $.ajax({
-          url: "get_download_status"
-          , type: "get"
-          , async: false
-          , dataType: "json"
-          , success: function (result) {
-            $("#download_speed_title").html(result.download_speed)
+      // ─── Download state toggle ───────────────────────────────────
+      window.download_state_change = function(el) {
+        var $el = $(el);
+        var state = $el.data("value");
+        $.post("set_download_state?state=" + encodeURIComponent(state), function(res) {
+          $el.data("value", res);
+          if (res === "pause") {
+            $el.text("⏸ Pause").removeClass("continue").addClass("pause");
+          } else {
+            $el.text("▶ Resume").removeClass("pause").addClass("continue");
+          }
+        }).fail(function() {
+          console.warn("Toggle state failed");
+        });
+      };
+
+      // ─── Escape utility ──────────────────────────────────────────
+      function escapeHtml(str) {
+        if (!str) return '';
+        return String(str)
+          .replace(/&/g, '&amp;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;')
+          .replace(/\"/g, '&quot;')
+          .replace(/'/g, '&#039;');
+      }
+
+      // ═══════════════════════════════════════════════════════════════
+      // ACCOUNT TAB LOGIC
+      // ═══════════════════════════════════════════════════════════════
+
+      // ─── Fetch Logs ──────────────────────────────────────────────
+      window.fetchLogs = function() {
+        $.get("/api/logs", function(res) {
+          $("#log_content").text(res);
+        }).fail(function() {
+          $("#log_content").text("Failed to load logs.");
+        });
+      };
+
+      // ─── Fetch Version ───────────────────────────────────────────
+      window.fetchVersion = function() {
+        $.get("/api/version", function(res) {
+          if (res.version) {
+            $("#app_version").text("v" + res.version);
           }
         });
-
       };
-
-
-      var update_download_list_int = self.setInterval(update_download_list, 1000);
-      var update_download_status_int = self.setInterval(update_download_status, 1000);
-      var update_already_download_list_int = 0;
-
-
-      function update_already_download_list() {
-        $.ajax({
-          url: "get_download_list?already_down=true"
-          , type: "get"
-          , async: false
-          , dataType: "json"
-          , success: function (result) {
-            // if not exist then add
-            for (var i = 0, len = result.length; i < len; i++) {
-              if (result[i].download_progress != 100) {
-                continue
-              }
-
-              find_iter = false
-
-              for (var j = 0, len2 = already_download_list_data.length; j < len2; j++) {
-                if (result[i].chat == download_list_table_data[i].chat && result[i].id == already_download_list_data[j].id) {
-                  find_iter = true
-                  break
-                }
-              }
-
-              if (find_iter) {
-                continue;
-              }
-              // not found
-              obj = $('div[lay-id="already_download_list"]  .layui-table-body .layui-table tbody')
-              var tr = ' <tr data-index="' + result[i].chat + '-' + result[i].id + '">' +
-                '<td data-field="id" data-key="2-0-0" class=""><div class="layui-table-cell laytable-cell-2-0-0">' + result[i].id + '</div></td>' +
-                '<td data-field="filename" data-key="2-0-1" class=""><div class="layui-table-cell laytable-cell-2-0-1" align="center">' + result[i].filename + '</div></td>' +
-                '<td data-field="total_size" data-key="2-0-2" class=""><div class="layui-table-cell laytable-cell-2-0-2" align="center">' + result[i].total_size + '</div></td>' +
-                '<td data-field="save_path" data-key="2-0-3" class=""><div class="layui-table-cell laytable-cell-2-0-3" align="center">' + result[i].save_path + '</div></td>' +
-                "  </tr>";
-              obj.append(tr)
-
-              already_download_list_data.push(result[i])
-
-              if (already_download_list_data.length == 1) {
-                $(".layui-none").remove()
-              }
-              element.render()
-            }
-
-            element.render()
-          }
-        });
-
-      };
-
-      element.on('tab(telegram_media_downloader)', function (data) {
-        if (data.index != 0) {
-          clearInterval(update_download_list_int);
-        }
-
-        if (data.index == 0) {
-          update_download_list_int = self.setInterval(update_download_list, 1000);
-        }
-
-        if (data.index != 1) {
-          clearInterval(update_already_download_list_int);
-        }
-
-        if (data.index == 1) {
-          update_already_download_list_int = self.setInterval(update_already_download_list, 1000);
-        }
-
+      
+      // Call on load
+      $(document).ready(function() {
+        fetchVersion();
       });
 
+      // ─── Main tab switch (Dashboard / Account) ───────────────────
+      window.switchMainTab = function(tab) {
+        if (currentMainTab === tab) return;
+        currentMainTab = tab;
+
+        $("#tabs button").each(function() {
+          var t = $(this).data("tab");
+          if (t === tab) {
+            $(this).addClass("tab-active");
+          } else {
+            $(this).removeClass("tab-active");
+          }
+        });
+
+        // Show/hide tab bodies and toggle area
+        if (tab === 'dashboard') {
+          $("#tab_dashboard").removeClass("hidden");
+          $("#tab_account").addClass("hidden");
+          $("#tab_bot").addClass("hidden");
+          $("#tab_logs").addClass("hidden");
+          $("#toggle_area").show();
+          $("#download_tabs").show();
+          fetchList();
+          if (pollTimer) clearInterval(pollTimer);
+          pollTimer = setInterval(fetchList, 3000);
+          // Stop other polling
+          if (accountPollTimer) { clearInterval(accountPollTimer); accountPollTimer = null; }
+        } else if (tab === 'account') {
+          $("#tab_dashboard").addClass("hidden");
+          $("#tab_account").removeClass("hidden");
+          $("#tab_bot").addClass("hidden");
+          $("#tab_logs").addClass("hidden");
+          $("#toggle_area").hide();
+          $("#download_tabs").hide();
+          if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
+          // Load account info
+          loadAccountStatus();
+          // Poll account status periodically
+          if (accountPollTimer) clearInterval(accountPollTimer);
+          accountPollTimer = setInterval(loadAccountStatus, 15000);
+        } else if (tab === 'bot') {
+          $("#tab_dashboard").addClass("hidden");
+          $("#tab_account").addClass("hidden");
+          $("#tab_bot").removeClass("hidden");
+          $("#tab_logs").addClass("hidden");
+          $("#toggle_area").hide();
+          $("#download_tabs").hide();
+          if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
+          if (accountPollTimer) { clearInterval(accountPollTimer); accountPollTimer = null; }
+          // Load bot settings
+          loadBotSettings();
+        } else if (tab === 'logs') {
+          $("#tab_dashboard").addClass("hidden");
+          $("#tab_account").addClass("hidden");
+          $("#tab_bot").addClass("hidden");
+          $("#tab_logs").removeClass("hidden");
+          $("#toggle_area").hide();
+          $("#download_tabs").hide();
+          if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
+          if (accountPollTimer) { clearInterval(accountPollTimer); accountPollTimer = null; }
+          // Load logs
+          fetchLogs();
+        }
+      };
+
+      // ─── Load account status from backend ────────────────────────
+      function loadAccountStatus() {
+        $("#account_loading").removeClass("hidden");
+        $("#account_logged_in").addClass("hidden");
+        $("#account_logged_out").addClass("hidden");
+
+        $.get("/api/tg/status", function(res) {
+          var data = typeof res === 'string' ? JSON.parse(res) : res;
+          $("#account_loading").addClass("hidden");
+
+          if (data.logged_in) {
+            $("#account_logged_in").removeClass("hidden");
+            $("#account_logged_out").addClass("hidden");
+
+            // Populate account info
+            var initials = (data.first_name || "?")[0].toUpperCase();
+            $("#account_initials").text(initials);
+            $("#account_name").text(
+              [data.first_name, data.last_name].filter(Boolean).join(" ") || "Unknown"
+            );
+            $("#account_user_id").text(data.user_id || "---");
+            $("#account_username").text(data.username ? "@" + data.username : "---");
+            $("#account_phone").text(data.phone_number || "---");
+            $("#account_first_name").text(data.first_name || "---");
+            $("#account_last_name").text(data.last_name || "---");
+            $("#account_type").text(data.is_bot ? "Bot" : "User");
+          } else {
+            $("#account_logged_in").addClass("hidden");
+            $("#account_logged_out").removeClass("hidden");
+            // Reset auth form to step 1
+            resetAuthSteps();
+          }
+        }).fail(function() {
+          $("#account_loading").addClass("hidden");
+        });
+      }
+
+      // ─── Reset auth form to initial state ────────────────────────
+      function resetAuthSteps() {
+        $("#auth_step_phone").removeClass("hidden");
+        $("#auth_step_code").addClass("hidden");
+        $("#auth_step_2fa").addClass("hidden");
+        $("#phone_error").addClass("hidden").text("");
+        $("#code_error").addClass("hidden").text("");
+        $("#2fa_error").addClass("hidden").text("");
+        $("#tg_phone").val("");
+        $("#tg_code").val("");
+        $("#tg_2fa_password").val("");
+        $("#btn_send_code").prop("disabled", false).text("📱 Send Verification Code");
+      }
+
+      // ─── Step 1: Send phone number ───────────────────────────────
+      window.sendCode = function() {
+        var phone = $("#tg_phone").val().trim();
+        if (!phone) {
+          showError("phone_error", "Please enter your phone number");
+          return;
+        }
+
+        var $btn = $("#btn_send_code");
+        $btn.prop("disabled", true).text("⏳ Sending...");
+        $("#phone_error").addClass("hidden");
+
+        $.ajax({
+          url: "/api/tg/login_start",
+          method: "POST",
+          contentType: "application/json",
+          data: JSON.stringify({ phone_number: phone }),
+          success: function(res) {
+            var data = typeof res === 'string' ? JSON.parse(res) : res;
+            if (data.success) {
+              // Move to code step
+              $("#auth_step_phone").addClass("hidden");
+              $("#auth_step_code").removeClass("hidden");
+              $("#tg_code").focus();
+            } else {
+              showError("phone_error", data.error || "Failed to send code");
+              $btn.prop("disabled", false).text("📱 Send Verification Code");
+            }
+          },
+          error: function(xhr) {
+            var msg = "Network error";
+            try {
+              var err = JSON.parse(xhr.responseText);
+              msg = err.error || msg;
+            } catch(e) {}
+            showError("phone_error", msg);
+            $btn.prop("disabled", false).text("📱 Send Verification Code");
+          }
+        });
+      };
+
+      // ─── Step 2: Verify code ─────────────────────────────────────
+      window.verifyCode = function() {
+        var code = $("#tg_code").val().trim();
+        if (!code) {
+          showError("code_error", "Please enter the verification code");
+          return;
+        }
+
+        var $btn = $("#btn_verify_code");
+        $btn.prop("disabled", true).text("⏳ Verifying...");
+        $("#code_error").addClass("hidden");
+
+        $.ajax({
+          url: "/api/tg/verify_code",
+          method: "POST",
+          contentType: "application/json",
+          data: JSON.stringify({ code: code }),
+          success: function(res) {
+            var data = typeof res === 'string' ? JSON.parse(res) : res;
+            if (data.step === "done") {
+              // Login complete!
+              resetAuthSteps();
+              loadAccountStatus();
+            } else if (data.step === "2fa") {
+              // Need 2FA
+              $("#auth_step_code").addClass("hidden");
+              $("#auth_step_2fa").removeClass("hidden");
+              $("#tg_2fa_password").focus();
+            } else if (!data.success) {
+              showError("code_error", data.error || "Invalid code");
+              $btn.prop("disabled", false).text("✓ Verify");
+            }
+          },
+          error: function(xhr) {
+            var msg = "Verification failed";
+            try {
+              var err = JSON.parse(xhr.responseText);
+              msg = err.error || msg;
+            } catch(e) {}
+            showError("code_error", msg);
+            $btn.prop("disabled", false).text("✓ Verify");
+          }
+        });
+      };
+
+      // ─── Step 3: Verify 2FA password ─────────────────────────────
+      window.verify2FA = function() {
+        var password = $("#tg_2fa_password").val().trim();
+        if (!password) {
+          showError("2fa_error", "Please enter your 2FA password");
+          return;
+        }
+
+        var $btn = $("#btn_verify_2fa");
+        $btn.prop("disabled", true).text("⏳ Unlocking...");
+        $("#2fa_error").addClass("hidden");
+
+        $.ajax({
+          url: "/api/tg/verify_2fa",
+          method: "POST",
+          contentType: "application/json",
+          data: JSON.stringify({ password: password }),
+          success: function(res) {
+            var data = typeof res === 'string' ? JSON.parse(res) : res;
+            if (data.success) {
+              // Login complete!
+              resetAuthSteps();
+              loadAccountStatus();
+            } else {
+              showError("2fa_error", data.error || "Invalid password");
+              $btn.prop("disabled", false).text("🔐 Unlock");
+            }
+          },
+          error: function(xhr) {
+            var msg = "2FA verification failed";
+            try {
+              var err = JSON.parse(xhr.responseText);
+              msg = err.error || msg;
+            } catch(e) {}
+            showError("2fa_error", msg);
+            $btn.prop("disabled", false).text("🔐 Unlock");
+          }
+        });
+      };
+
+      // ─── Go back to phone step ───────────────────────────────────
+      window.backToPhone = function() {
+        resetAuthSteps();
+      };
+
+      // ─── Logout ──────────────────────────────────────────────────
+      window.doLogout = function() {
+        if (!confirm("Are you sure you want to logout?\n\nYour session will be deleted and you'll need to login again. The application may need to be restarted.")) {
+          return;
+        }
+
+        $("#account_loading").removeClass("hidden");
+        $("#account_logged_in").addClass("hidden");
+        $("#account_logged_out").addClass("hidden");
+
+        $.ajax({
+          url: "/api/tg/logout",
+          method: "POST",
+          contentType: "application/json",
+          success: function(res) {
+            var data = typeof res === 'string' ? JSON.parse(res) : res;
+            if (data.success) {
+              resetAuthSteps();
+              loadAccountStatus();
+            } else {
+              alert("Logout failed: " + (data.error || "Unknown error"));
+              loadAccountStatus();
+            }
+          },
+          error: function() {
+            alert("Logout failed due to network error");
+            loadAccountStatus();
+          }
+        });
+      };
+
+      // ─── Error display helper ────────────────────────────────────
+      function showError(id, msg) {
+        $("#" + id).text(msg).removeClass("hidden");
+      }
+
+      // ═══════════════════════════════════════════════════════════════
+      // BOT TAB LOGIC
+      // ═══════════════════════════════════════════════════════════════
+
+      // ─── Load bot settings from backend ───────────────────────────
+      window.loadBotSettings = function() {
+        $("#bot_loading").removeClass("hidden");
+        $("#bot_settings_form").addClass("hidden");
+        $("#bot_status").addClass("hidden");
+
+        $.get("/api/bot/get", function(res) {
+          var data = typeof res === 'string' ? JSON.parse(res) : res;
+          $("#bot_loading").addClass("hidden");
+          $("#bot_settings_form").removeClass("hidden");
+
+          if (data.success) {
+            $("#bot_token").val(data.bot_token || "");
+            var ids = data.allowed_user_ids || [];
+            $("#allowed_user_ids").val(ids.join(", "));
+          } else {
+            showBotStatus("Failed to load settings: " + (data.error || "Unknown error"), "error");
+          }
+        }).fail(function() {
+          $("#bot_loading").addClass("hidden");
+          $("#bot_settings_form").removeClass("hidden");
+          showBotStatus("Failed to load bot settings (network error)", "error");
+        });
+      };
+
+      // ─── Save bot settings to backend ─────────────────────────────
+      window.saveBotSettings = function() {
+        var $btn = $("#btn_save_bot");
+        $btn.prop("disabled", true).text("⏳ Saving...");
+        $("#bot_status").addClass("hidden");
+
+        var token = $("#bot_token").val().trim();
+        var idsRaw = $("#allowed_user_ids").val().trim();
+
+        $.ajax({
+          url: "/api/bot/update",
+          method: "POST",
+          contentType: "application/json",
+          data: JSON.stringify({
+            bot_token: token,
+            allowed_user_ids: idsRaw
+          }),
+          success: function(res) {
+            var data = typeof res === 'string' ? JSON.parse(res) : res;
+            if (data.success) {
+              showBotStatus(data.message || "Settings saved successfully", "success");
+            } else {
+              showBotStatus("Error: " + (data.error || "Save failed"), "error");
+            }
+            $btn.prop("disabled", false).text("💾 Save Settings");
+          },
+          error: function(xhr) {
+            var msg = "Save failed";
+            try {
+              var err = JSON.parse(xhr.responseText);
+              msg = err.error || msg;
+            } catch(e) {}
+            showBotStatus("Error: " + msg, "error");
+            $btn.prop("disabled", false).text("💾 Save Settings");
+          }
+        });
+      };
+
+      // ─── Bot status message helper ────────────────────────────────
+      function showBotStatus(msg, type) {
+        var $el = $("#bot_status");
+        $el.text(msg).removeClass("hidden");
+        if (type === "success") {
+          $el.removeClass("text-red-500").addClass("text-green-600");
+        } else {
+          $el.removeClass("text-green-600").addClass("text-red-500");
+        }
+      }
+
+      // ─── Allow Enter key to submit in auth inputs ────────────────
+      $(document).on("keydown", "#tg_phone", function(e) {
+        if (e.key === "Enter") sendCode();
+      });
+      $(document).on("keydown", "#tg_code", function(e) {
+        if (e.key === "Enter") verifyCode();
+      });
+      $(document).on("keydown", "#tg_2fa_password", function(e) {
+        if (e.key === "Enter") verify2FA();
+      });
+
+      // Refresh logs every 5 seconds if on logs tab
+      setInterval(() => {
+        if (currentMainTab === 'logs') {
+          fetchLogs();
+        }
+      }, 5000);
     });
   </script>
 </body>
-
 </html>

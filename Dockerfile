@@ -1,33 +1,45 @@
+# ── Build Stage ──────────────────────────────────────────────────
 FROM python:3.11.9-alpine AS build
 
 WORKDIR /app
 
-# Build deps for pip packages that need compilation
-RUN apk add --no-cache --virtual .build-deps gcc musl-dev
+# System build deps for compiling native Python extensions
+RUN apk add --no-cache --virtual .build-deps \
+    gcc musl-dev libffi-dev openssl-dev
 
-# Install python deps
-COPY requirements.txt /app/
+# Install Python dependencies
+COPY requirements.txt .
 RUN pip install --no-cache-dir \
     --trusted-host pypi.org \
     --trusted-host files.pythonhosted.org \
     --trusted-host pypi.python.org \
     -r requirements.txt
 
-# Install rclone (runtime binary)
-RUN apk add --no-cache rclone
 
-
+# ── Runtime Stage ─────────────────────────────────────────────────
 FROM python:3.11.9-alpine AS runtime
 
 WORKDIR /app
 
-# Copy installed deps from build stage
+# Copy installed Python packages from build stage
 COPY --from=build /usr/local/lib/python3.11/site-packages /usr/local/lib/python3.11/site-packages
 
-# Copy rclone to the path expected by the app (matches code default: ./rclone/rclone)
-COPY --from=build /usr/bin/rclone /app/rclone/rclone
+# Install runtime system deps: rclone (cloud upload)
+RUN apk add --no-cache rclone
 
-# Copy app source code
-COPY . /app
+# Ensure rclone is at the path expected by the app
+RUN mkdir -p /app/rclone && ln -sf /usr/bin/rclone /app/rclone/rclone
 
-CMD ["python", "media_downloader.py"]
+# Copy application source code
+COPY module/   ./module/
+COPY utils/    ./utils/
+COPY media_downloader.py .
+COPY requirements.txt .
+
+# Create directories for runtime data (mounted as volumes)
+RUN mkdir -p /app/log /app/sessions /app/temp /app/downloads
+
+# Python unbuffered output for clean Docker logs
+ENV PYTHONUNBUFFERED=1
+
+CMD ["python", "-u", "media_downloader.py"]

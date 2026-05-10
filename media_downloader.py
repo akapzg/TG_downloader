@@ -1,4 +1,3 @@
-"""Downloads media from telegram."""
 import asyncio
 import logging
 import os
@@ -497,7 +496,6 @@ async def download_media(
 
 
 def _load_config():
-    """Load config"""
     app.load_config()
 
 
@@ -646,9 +644,141 @@ async def stop_server(client: pyrogram.Client):
     await client.stop()
 
 
+def _get_session_file(app) -> str:
+    """Return the full path to the session file."""
+    return os.path.join(app.session_file_path, "media_downloader.session")
+
+
+async def _check_session_valid(app) -> bool:
+    """Check whether a valid, authorized session exists on disk.
+
+    Opens a temporary Pyrogram client, connects, and verifies that
+    ``storage.user_id()`` returns a truthy value.  The temporary client
+    is always disconnected before returning so the main client can
+    re-use the session file without conflicts.
+
+    Automatically retries once on failure to paper over transient
+    file-system races (e.g. a concurrent writer).
+    """
+    session_file = _get_session_file(app)
+
+    for attempt in (1, 2):
+        if not os.path.exists(session_file):
+            return False
+
+        # Ignore zero-byte / stub session files that Pyrogram
+        # sometimes creates before writing real auth data.
+        try:
+            if os.path.getsize(session_file) < 64:
+                if attempt == 1:
+                    await asyncio.sleep(1)  # writer may be in-flight
+                    continue
+                logger.debug("Session file too small (<64 bytes); treating as invalid.")
+                return False
+        except OSError:
+            return False
+
+        try:
+            import pyrogram as pg
+
+            client = pg.Client(
+                "media_downloader",
+                api_id=app.api_id,
+                api_hash=app.api_hash,
+                proxy=app.proxy if app.proxy else None,
+                workdir=app.session_file_path,
+                in_memory=False,
+            )
+            await client.connect()
+            user_id = await client.storage.user_id()
+            await client.disconnect()
+            return bool(user_id)
+        except Exception:
+            if attempt == 1:
+                await asyncio.sleep(1)
+                continue
+            # Any persistent error → treat as invalid
+            return False
+
+    return False
+
+
+async def _wait_for_session(app) -> bool:
+    """Block until a valid session file is available (or the app is stopped).
+
+    This function is the sole entry-point for the session-detection
+    logic.  It is designed to be called via
+    ``app.loop.run_until_complete()`` and sleeps asynchronously so
+    that the event loop stays alive for any concurrent tasks (e.g. the
+    web server, which runs in its own daemon thread).
+
+    Returns ``True`` when a valid session is ready; ``False`` if the
+    app was told to shut down while waiting.
+    """
+    session_file = _get_session_file(app)
+    web_url = f"http://{app.web_host}:{app.web_port}"
+
+    # ── first check ────────────────────────────────────────────────
+    if await _check_session_valid(app):
+        logger.info("Valid session found. Resuming startup...")
+        return True
+
+    # ── log the web-auth hint exactly once ─────────────────────────
+    logger.warning(
+        _t("No valid session file found.")
+        + " "
+        + _t("Starting Web UI for Telegram login...")
+    )
+    logger.warning(f"👉  {_t('Please open')} {web_url} {_t('in your browser to log in.')}")
+
+    # ── poll until a valid session appears ─────────────────────────
+    while app.is_running:
+        if await _check_session_valid(app):
+            logger.info("Valid session detected! Proceeding with startup...")
+            return True
+
+        # If a session file exists but was marked invalid (e.g.
+        # expired / zero-byte stub), remove it so the web-auth flow
+        # can write a fresh one without name collisions.
+        # Only delete files that haven't been touched recently (≥10 s)
+        # to avoid racing with an in-progress web authentication.
+        if os.path.exists(session_file):
+            try:
+                age = time.time() - os.path.getmtime(session_file)
+                if age >= 10:
+                    os.remove(session_file)
+                    logger.debug("Removed stale invalid session file; waiting for fresh login.")
+            except OSError:
+                pass
+
+        await asyncio.sleep(3)
+
+    return False
+
+
 def main():
     """Main function of the downloader."""
     tasks = []
+    app.pre_run()
+    init_web(app)
+
+    # ── Session-detection / web-auth gate ──────────────────────────
+    # NEVER call input() or block the main thread synchronously:
+    # under systemd there is no console and blocking stdin causes
+    # a hang / crash loop.
+    
+    # MODIFIED: Force non-interactive mode. If no session, we stay 
+    # in the web server loop waiting for auth, never calling input().
+    # We remove the sync check and block only on the async polling.
+    
+    # ── Normal startup (only reached with a valid session) ─────────
+    # (Moved below session ready check)
+    session_ready = app.loop.run_until_complete(_wait_for_session(app))
+    if not session_ready:
+        logger.info("Shutting down before session was ready.")
+        return
+
+    # ── Normal startup (only reached with a valid session) ─────────
     client = HookClient(
         "media_downloader",
         api_id=app.api_id,
@@ -659,9 +789,6 @@ def main():
         no_updates=True,
     )
     try:
-        app.pre_run()
-        init_web(app)
-
         set_max_concurrent_transmissions(client, app.max_concurrent_transmissions)
 
         app.loop.run_until_complete(start_server(client))
@@ -689,7 +816,6 @@ def main():
         for task in tasks:
             task.cancel()
         logger.info(_t("Stopped!"))
-        # check_for_updates(app.proxy)
         logger.info(f"{_t('update config')}......")
         app.update_config()
         logger.success(

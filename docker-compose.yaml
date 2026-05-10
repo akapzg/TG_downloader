@@ -1,29 +1,37 @@
-version: "3.3"
-
 services:
   telegram_media_downloader:
-    image: tangyoha/telegram_media_downloader:latest
     build: .
+    image: ghcr.io/${{ github.repository }}:latest
+    container_name: tg_downloader
     ports:
-      # Here is what you need to edit
+      # Web UI port (edit if you changed web_port in config.yaml)
       - "5000:5000"
-    #environment:
-    #  - http_proxy=http://192.168.101.30:10811
-    #  - https_proxy=http://192.168.101.30:10811
+    # Proxy support (uncomment and set if needed):
+    # environment:
+    #   http_proxy: "http://proxy.example.com:1080"
+    #   https_proxy: "http://proxy.example.com:1080"
+    environment:
+      - PYTHONUNBUFFERED=1
     volumes:
-      # Here is what you need to edit
-      - "./downloads/:/app/downloads/"
+      # ── Configuration (bind-mount for easy editing) ──────────
+      - ./config.yaml:/app/config.yaml:ro
+      - ./data.yaml:/app/data.yaml
 
-      # Rclone
-      - "$HOME/.config/rclone/:$HOME/.config/rclone/"
+      # ── Persistent runtime data ─────────────────────────────
+      - tg_sessions:/app/sessions
+      - tg_logs:/app/log
+      - tg_temp:/app/temp
 
-      # The following is what you don't need to edit
-      - "./config.yaml:/app/config.yaml"
-      - "./data.yaml:/app/data.yaml"
-      - "./log/:/app/log/"
-      - "./sessions/:/app/sessions"
-      - "./temp/:/app/temp"
-    #restart: "unless-stopped"
-# volumes:
-#   sessions:
-#   temp:
+      # ── Downloaded media ────────────────────────────────────
+      - tg_downloads:/app/downloads
+
+      # ── Rclone config (optional cloud upload) ───────────────
+      - ${HOME}/.config/rclone:${HOME}/.config/rclone:ro
+
+    restart: unless-stopped
+
+volumes:
+  tg_sessions:
+  tg_logs:
+  tg_temp:
+  tg_downloads:

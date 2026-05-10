@@ -20,8 +20,8 @@ Makefile
 media_downloader.spec
 mypy.ini
 pylintrc
-docker-compose.yaml
-Dockerfile
+data.yaml
+config.yaml
 .pre-commit-config.yaml
 codecov.yml
 CODE_OF_CONDUCT.md
@@ -30,3 +30,12 @@ LICENSE
 dev-requirements.txt
 gen_filter_cache.py
 screenshot/
+setup.py
+.gitignore
+.dockerignore
+audio/
+document/
+photo/
+voice/
+video/
+video_note/
