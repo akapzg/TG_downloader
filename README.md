@@ -19,10 +19,12 @@ Automated Telegram media downloader with modern Web UI. Docker one-click deploy,
 ### Quick Start
 
 ```bash
-mkdir -p ~/tg_downloader && cd ~/tg_downloader && wget https://raw.githubusercontent.com/akapzg/TG_downloader/master/docker-compose.yaml && docker compose pull && docker compose up -d
+mkdir -p ~/tg_downloader && cd ~/tg_downloader && wget https://raw.githubusercontent.com/akapzg/TG_downloader/master/docker-compose.yaml
+touch config.yaml data.yaml   # required: Docker bind-mount creates directories if files are missing
+docker compose pull && docker compose up -d
 ```
 
-On first start, `config.yaml` and `data.yaml` are auto-created from templates.
+On first start, `config.yaml` and `data.yaml` are populated from templates.
 Access `http://<Server-IP>:5000` to continue setup.
 
 ## First-Time Setup
@@ -39,7 +41,7 @@ Or set a fixed password in `docker-compose.yaml`:
 environment:
   - WEB_LOGIN_SECRET=your_password_here
 ```
-Session expires after 5 minutes of inactivity.
+Session expires after 30 minutes of inactivity.
 
 ### 2. API Credentials
 Required for Telegram connection. Obtain from [my.telegram.org](https://my.telegram.org/apps):

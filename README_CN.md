@@ -19,10 +19,12 @@ Telegram 媒体自动下载工具，现代化 Web UI，Docker 一键部署，多
 ### 快速部署
 
 ```bash
-mkdir -p ~/tg_downloader && cd ~/tg_downloader && wget https://raw.githubusercontent.com/akapzg/TG_downloader/master/docker-compose.yaml && docker compose pull && docker compose up -d
+mkdir -p ~/tg_downloader && cd ~/tg_downloader && wget https://raw.githubusercontent.com/akapzg/TG_downloader/master/docker-compose.yaml
+touch config.yaml data.yaml   # 必需：Docker 绑定挂载会在文件缺失时创建目录
+docker compose pull && docker compose up -d
 ```
 
-首次启动会自动从模板创建 `config.yaml` 和 `data.yaml`。
+首次启动会从模板填充 `config.yaml` 和 `data.yaml`。
 访问 `http://<服务器IP>:5000` 继续配置。
 
 ## 首次使用配置
@@ -39,7 +41,7 @@ docker compose logs | grep SECURITY
 environment:
   - WEB_LOGIN_SECRET=你的密码
 ```
-5 分钟无操作自动退出登录。
+30 分钟无操作自动退出登录。
 
 ### 2. API 凭证
 连接 Telegram 必须配置。从 [my.telegram.org](https://my.telegram.org/apps) 获取：

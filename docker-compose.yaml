@@ -11,6 +11,7 @@ services:
     #   https_proxy: "http://proxy.example.com:1080"
     environment:
       - PYTHONUNBUFFERED=1
+      - TZ=Asia/Shanghai
       # Web UI login password (optional — auto-generated if not set)
       # - WEB_LOGIN_SECRET=your_password_here
     volumes:
