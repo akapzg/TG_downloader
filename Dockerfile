@@ -46,4 +46,7 @@ RUN chmod +x /app/entrypoint.sh
 # Python unbuffered output for clean Docker logs
 ENV PYTHONUNBUFFERED=1
 
+ARG APP_VERSION=latest
+ENV APP_VERSION=${APP_VERSION}
+
 ENTRYPOINT ["/app/entrypoint.sh"]

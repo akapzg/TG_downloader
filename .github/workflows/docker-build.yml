@@ -37,6 +37,8 @@ jobs:
           context: .
           platforms: linux/amd64,linux/arm64
           push: true
+          build-args: |
+            APP_VERSION=${{ github.ref_name }}
           tags: |
             ghcr.io/akapzg/tg_downloader:${{ github.ref_name }}
             ghcr.io/akapzg/tg_downloader:latest

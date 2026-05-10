@@ -225,7 +225,7 @@ def web_set_download_state():
 @_flask_app.route("/get_app_version")
 def get_app_version():
     """Get telegram_media_downloader version"""
-    return utils.__version__
+    return os.environ.get("APP_VERSION", utils.__version__)
 
 
 @_flask_app.route("/get_download_list")
