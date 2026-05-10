@@ -17,10 +17,7 @@ Telegram 媒体自动下载工具，现代化 Web UI，Docker 一键部署，多
 ### 快速部署
 
 ```bash
-mkdir -p ~/tg_downloader && cd ~/tg_downloader
-wget https://raw.githubusercontent.com/akapzg/TG_downloader/master/docker-compose.yaml
-docker compose pull
-docker compose up -d
+mkdir -p ~/tg_downloader && cd ~/tg_downloader && wget https://raw.githubusercontent.com/akapzg/TG_downloader/master/docker-compose.yaml && docker compose pull && docker compose up -d
 ```
 
 首次启动会自动从模板创建 `config.yaml` 和 `data.yaml`。

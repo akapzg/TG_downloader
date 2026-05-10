@@ -17,10 +17,7 @@ Automated Telegram media downloader with modern Web UI. Docker one-click deploy,
 ### Quick Start
 
 ```bash
-mkdir -p ~/tg_downloader && cd ~/tg_downloader
-wget https://raw.githubusercontent.com/akapzg/TG_downloader/master/docker-compose.yaml
-docker compose pull
-docker compose up -d
+mkdir -p ~/tg_downloader && cd ~/tg_downloader && wget https://raw.githubusercontent.com/akapzg/TG_downloader/master/docker-compose.yaml && docker compose pull && docker compose up -d
 ```
 
 On first start, `config.yaml` and `data.yaml` are auto-created from templates.
