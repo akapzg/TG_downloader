@@ -1,53 +1,53 @@
 # Telegram Media Downloader
 
-感谢原作者 [tangyoha/telegram_media_downloader](https://github.com/tangyoha/telegram_media_downloader) 的开源贡献。
+Thanks to the original author [tangyoha/telegram_media_downloader](https://github.com/tangyoha/telegram_media_downloader) for their open-source contribution.
 
-本项目基于原项目进行现代化重构与 Docker 化改造。
+This project is a modernized, containerized refactor of the original tool.
 
 [中文 README](README_CN.md)
 
 ## Overview
-本项目是一个支持 Telegram 媒体文件（音频、视频、图片等）自动下载的工具。已完全容器化，支持 Web 端管理与认证。
+This project is an automated tool for downloading media files (audio, video, images, etc.) from Telegram. It is fully containerized and supports Web-based management and authentication.
 
-## 部署说明
+## Deployment
 
-### 前置条件
-*   已安装 Docker 和 Docker Compose
+### Prerequisites
+*   Docker and Docker Compose installed.
 
-### 快速部署
+### Quick Start
 
-1. **拉取与启动**：
-   直接使用 GitHub Container Registry 提供的镜像进行部署。
+1. **Pull and Start**:
+   Deploy using the image provided by the GitHub Container Registry.
 
    ```bash
-   # 创建项目目录
+   # Create the project directory
    mkdir -p ~/tg_downloader && cd ~/tg_downloader
    
-   # 下载 docker-compose.yaml
+   # Download docker-compose.yaml
    wget https://raw.githubusercontent.com/akapzg/TG_downloader/master/docker-compose.yaml
    
-   # 启动服务
+   # Start the service
    docker compose up -d
    ```
 
-2. **配置认证**：
-   *   服务启动后，访问 `http://<服务器IP>:5000`。
-   *   在 `Account` 选项卡中按照提示输入手机号与验证码进行 Telegram 登录认证。
-   *   认证成功后，程序会自动保存 session 并开始工作。
+2. **Authentication**:
+   *   After the service starts, access `http://<Server-IP>:5000`.
+   *   Navigate to the `Account` tab and enter your phone number and verification code to authenticate with Telegram.
+   *   Once authenticated, the application will save the session and begin processing.
 
-## 维护与更新
+## Maintenance and Updates
 
-*   **查看日志**：在 Web UI 中点击 `Logs` 选项卡，或在后台执行：
+*   **View Logs**: Click the `Logs` tab in the Web UI, or run the following command:
     ```bash
     docker compose logs -f
     ```
-*   **版本更新**：
+*   **Update**:
     ```bash
     docker compose pull
     docker compose up -d
     ```
 
-## 特性
-*   **现代化 UI**：基于 Tailwind CSS 重构的前端界面。
-*   **容器化**：标准的 Docker 多架构支持 (amd64/arm64)。
-*   **极简部署**：只需 Docker Compose 即可一键运行。
+## Features
+*   **Modernized UI**: Frontend redesigned with Tailwind CSS.
+*   **Containerized**: Standard multi-architecture Docker support (amd64/arm64).
+*   **Minimalist Deployment**: Easy, one-command deployment using Docker Compose.
