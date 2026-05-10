@@ -111,8 +111,9 @@ def init_web(app: Application):
     """
     global web_login_users, _app_ref
     _app_ref = app
-    if app.web_login_secret:
-        web_login_users = {"root": app.web_login_secret}
+    secret = os.environ.get("WEB_LOGIN_SECRET") or app.web_login_secret
+    if secret:
+        web_login_users = {"root": secret}
     else:
         password = secrets.token_hex(6)
         web_login_users = {"root": password}
