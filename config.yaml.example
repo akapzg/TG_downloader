@@ -20,5 +20,6 @@ media_types:
 - document
 - voice
 - video_note
+# web_login_secret: your_login_password
 # in linux please use /
 # save_path: E:\github\telegram_media_downloader

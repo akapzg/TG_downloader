@@ -3,6 +3,7 @@
 import asyncio
 import logging
 import os
+import secrets
 import threading
 from dataclasses import dataclass, field
 from typing import Optional
@@ -110,7 +111,10 @@ def init_web(app: Application):
     if app.web_login_secret:
         web_login_users = {"root": app.web_login_secret}
     else:
-        _flask_app.config["LOGIN_DISABLED"] = True
+        password = secrets.token_hex(6)
+        web_login_users = {"root": password}
+        print(f"[SECURITY] No web_login_secret set. Generated password: {password}")
+        print("[SECURITY] Use this password to log in at /login — save it now!")
     if app.debug_web:
         threading.Thread(target=run_web_server, args=(app,)).start()
     else:
