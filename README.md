@@ -17,29 +17,36 @@ This project is an automated tool for downloading media files (audio, video, ima
 ### Quick Start
 
 1. **Download Configuration**:
-   Download the latest `docker-compose.yaml` from the repository.
 
    ```bash
    mkdir -p ~/tg_downloader && cd ~/tg_downloader
    wget https://raw.githubusercontent.com/akapzg/TG_downloader/master/docker-compose.yaml
    ```
 
-2. **Pull and Start**:
-   Pull the pre-built image from the GitHub Container Registry and start the service.
+2. **Set Web UI Password** (optional):
+
+   Edit `docker-compose.yaml` and uncomment the `WEB_LOGIN_SECRET` line:
+   ```yaml
+   environment:
+     - WEB_LOGIN_SECRET=your_password_here
+   ```
+   If not set, a random password is generated on first start — check with `docker compose logs`.
+
+3. **Pull and Start**:
 
    ```bash
    docker compose pull
    docker compose up -d
    ```
 
-3. **Authentication**:
-   *   After the service starts, access `http://<Server-IP>:5000`.
-   *   Navigate to the `Account` tab and enter your phone number and verification code to authenticate with Telegram.
+4. **Login & Authenticate**:
+   *   Access `http://<Server-IP>:5000`, enter the Web UI password.
+   *   Navigate to the `Account` tab and enter your Telegram phone number and verification code.
    *   Once authenticated, the application will save the session and begin processing.
 
 ## Maintenance and Updates
 
-*   **View Logs**: Click the `Logs` tab in the Web UI, or run the following command:
+*   **View Logs**: Click the `Logs` tab in the Web UI, or run:
     ```bash
     docker compose logs -f
     ```
@@ -50,6 +57,7 @@ This project is an automated tool for downloading media files (audio, video, ima
     ```
 
 ## Features
-*   **Modernized UI**: Frontend redesigned with Tailwind CSS.
+*   **Modernized UI**: Frontend redesigned with Tailwind CSS, login integrated into the main page.
+*   **Auto-logout**: 5-minute session expiry for security.
 *   **Containerized**: Standard multi-architecture Docker support (amd64/arm64).
 *   **Minimalist Deployment**: Easy, one-command deployment using Docker Compose.
