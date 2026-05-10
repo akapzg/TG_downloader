@@ -12,25 +12,12 @@ services:
     environment:
       - PYTHONUNBUFFERED=1
     volumes:
-      # ── Configuration (bind-mount for easy editing) ──────────
       - ./config.yaml:/app/config.yaml
       - ./data.yaml:/app/data.yaml
-
-      # ── Persistent runtime data ─────────────────────────────
-      - tg_sessions:/app/sessions
-      - tg_logs:/app/log
-      - tg_temp:/app/temp
-
-      # ── Downloaded media ────────────────────────────────────
-      - tg_downloads:/app/downloads
-
-      # ── Rclone config (optional cloud upload) ───────────────
+      - ./sessions:/app/sessions
+      - ./log:/app/log
+      - ./temp:/app/temp
+      - ./downloads:/app/downloads
       - ${HOME}/.config/rclone:${HOME}/.config/rclone:ro
 
     restart: unless-stopped
-
-volumes:
-  tg_sessions:
-  tg_logs:
-  tg_temp:
-  tg_downloads:
