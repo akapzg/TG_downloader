@@ -268,7 +268,7 @@ def validate_title(title: str) -> str:
 
     """
 
-    r_str = r"[/\\:*?\"<>|\n]"  # '/ \ : * ? " < > |'
+    r_str = r"[/\\:*?\"<>|\n]"  # '/ \ : * ? " < > |'  — sanitized for filesystem safety
     new_title = re.sub(r_str, "_", title)
     return new_title
 

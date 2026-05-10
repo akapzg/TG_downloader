@@ -2,7 +2,9 @@
 
 Thanks to the original author [tangyoha/telegram_media_downloader](https://github.com/tangyoha/telegram_media_downloader) for their open-source contribution.
 
-This project is a modernized, containerized refactor of the original tool.
+This project is a Docker-based refactor of the original — no Python installation needed, just `docker compose pull` and run.
+
+Image hosted at [`ghcr.io/akapzg/tg_downloader`](https://github.com/akapzg/TG_downloader/pkgs/container/tg_downloader). Use `latest` for stable or `v*` tags for specific releases.
 
 [中文 README](README_CN.md)
 

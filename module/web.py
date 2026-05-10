@@ -1,6 +1,7 @@
 """web ui for media download"""
 
 import asyncio
+import json
 import logging
 import os
 import secrets
@@ -30,16 +31,19 @@ log.setLevel(logging.ERROR)
 
 _flask_app = Flask(__name__)
 
-_flask_app.secret_key = os.environ.get("FLASK_SECRET_KEY", "tdl")
-_flask_app.config["PERMANENT_SESSION_LIFETIME"] = timedelta(minutes=5)
+_flask_app.secret_key = os.environ.get("FLASK_SECRET_KEY") or secrets.token_hex(32)
+_flask_app.config["PERMANENT_SESSION_LIFETIME"] = timedelta(minutes=30)
 _login_manager = LoginManager()
 _login_manager.login_view = "login"
 _login_manager.init_app(_flask_app)
 web_login_users: dict = {}
 deAesCrypt = AesBase64(
-    os.environ.get("AES_KEY", "1234123412ABCDEF"),
-    os.environ.get("AES_IV", "ABCDEF1234123412"),
+    os.environ.get("AES_KEY") or secrets.token_hex(16),
+    os.environ.get("AES_IV") or secrets.token_hex(16),
 )
+
+# Stores the generated/default AES credentials for the authenticated API
+# (deprecated — credentials served directly from deAesCrypt instance)
 
 # ── Telegram auth state machine ──────────────────────────────────────
 # Stores in-progress Pyrogram login clients keyed by Flask session ID.
@@ -119,6 +123,13 @@ def init_web(app: Application):
         web_login_users = {"root": password}
         print(f"[SECURITY] No web_login_secret set. Generated password: {password}")
         print("[SECURITY] Use this password to log in at /login — save it now!")
+        # Also write password to /app/data/.web_password for Docker bind-mount access
+        try:
+            os.makedirs("/app/data", exist_ok=True)
+            with open("/app/data/.web_password", "w") as pf:
+                pf.write(password + "\n")
+        except OSError:
+            pass  # non-Docker or non-writable — silently skip
     if app.debug_web:
         threading.Thread(target=run_web_server, args=(app,)).start()
     else:
@@ -172,20 +183,26 @@ def index():
         download_state=(
             "pause" if get_download_state() is DownloadState.Downloading else "continue"
         ),
-        aes_key=os.environ.get("AES_KEY", "1234123412ABCDEF"),
-        aes_iv=os.environ.get("AES_IV", "ABCDEF1234123412"),
     )
+
+
+@_flask_app.route("/api/aes_credentials")
+def aes_credentials():
+    """Return AES key/IV for frontend encryption (public — needed for login form)."""
+    return jsonify({
+        "aes_key": deAesCrypt.key.decode("utf-8"),
+        "aes_iv": deAesCrypt.iv.decode("utf-8"),
+    })
 
 
 @_flask_app.route("/get_download_status")
 @login_required
 def get_download_speed():
     """Get download speed"""
-    return (
-        '{ "download_speed" : "'
-        + format_byte(get_total_download_speed())
-        + '/s" , "upload_speed" : "0.00 B/s" } '
-    )
+    return jsonify({
+        "download_speed": format_byte(get_total_download_speed()) + "/s",
+        "upload_speed": "0.00 B/s",
+    })
 
 
 @_flask_app.route("/set_download_state", methods=["POST"])
@@ -221,7 +238,7 @@ def get_download_list():
     already_down = request.args.get("already_down") == "true"
 
     download_result = get_download_result()
-    result = "["
+    result = []
     for chat_id, messages in download_result.items():
         for idx, value in messages.items():
             is_already_down = value["down_byte"] == value["total_size"]
@@ -229,31 +246,18 @@ def get_download_list():
             if already_down and not is_already_down:
                 continue
 
-            if result != "[":
-                result += ","
             download_speed = format_byte(value["download_speed"]) + "/s"
-            result += (
-                '{ "chat":"'
-                + f"{chat_id}"
-                + '", "id":"'
-                + f"{idx}"
-                + '", "filename":"'
-                + os.path.basename(value["file_name"])
-                + '", "total_size":"'
-                + f'{format_byte(value["total_size"])}'
-                + '" ,"download_progress":"'
-            )
-            result += (
-                f'{round(value["down_byte"] / value["total_size"] * 100, 1)}'
-                + '" ,"download_speed":"'
-                + download_speed
-                + '" ,"save_path":"'
-                + value["file_name"].replace("\\", "/")
-                + '"}'
-            )
+            result.append({
+                "chat": f"{chat_id}",
+                "id": f"{idx}",
+                "filename": os.path.basename(value["file_name"]),
+                "total_size": format_byte(value["total_size"]),
+                "download_progress": f"{round(value['down_byte'] / value['total_size'] * 100, 1)}",
+                "download_speed": download_speed,
+                "save_path": value["file_name"].replace("\\", "/"),
+            })
 
-    result += "]"
-    return result
+    return json.dumps(result)
 
 
 # ═══════════════════════════════════════════════════════════════════════
@@ -319,9 +323,27 @@ def tg_status():
     if not app:
         return jsonify({"logged_in": False, "error": "App not ready"})
 
+    # Reuse the application's existing client if available and connected
+    client = getattr(app, "client", None)
+    if client and getattr(client, "is_connected", False):
+        try:
+            me = app.loop.run_until_complete(client.get_me())
+            return jsonify({
+                "logged_in": True,
+                "user_id": me.id,
+                "username": me.username,
+                "first_name": me.first_name,
+                "last_name": me.last_name,
+                "phone_number": me.phone_number,
+                "is_bot": me.is_bot,
+            })
+        except Exception as e:
+            return jsonify({"logged_in": False, "error": str(e)})
+
+    # Fallback: check if session file exists but client not connected yet
     session_file = os.path.join(app.session_file_path, "media_downloader.session")
     if os.path.exists(session_file):
-        # Try to read basic info from the session
+        # Try a minimal connect to check validity
         try:
             pyrogram = _get_lazy_pyrogram()
             client = pyrogram.Client(
@@ -363,6 +385,11 @@ def tg_login_start():
     phone_number = (data.get("phone_number") or "").strip()
     if not phone_number:
         return jsonify({"success": False, "error": "Phone number is required"}), 400
+
+    # Validate phone number format: + followed by 7-15 digits
+    import re
+    if not re.match(r"^\+\d{7,15}$", phone_number):
+        return jsonify({"success": False, "error": "Phone number must be in international format (e.g., +8613800138000)"}), 400
 
     sid = _get_session_id()
     _cleanup_auth_state(sid)  # remove any previous attempt
@@ -613,10 +640,12 @@ def bot_update():
     # Persist to config file
     if changed:
         try:
-            with open(app.config_file, "w", encoding="utf-8") as f:
+            tmp = app.config_file + ".tmp"
+            with open(tmp, "w", encoding="utf-8") as f:
                 from ruamel import yaml as _ruamel_yaml
                 _yaml = _ruamel_yaml.YAML()
                 _yaml.dump(app.config, f)
+            os.rename(tmp, app.config_file)
             return jsonify({
                 "success": True,
                 "message": "Settings saved. Bot changes will take effect on next restart.",
@@ -709,10 +738,12 @@ def rclone_update():
 
     if changed:
         try:
-            with open(app.config_file, "w", encoding="utf-8") as f:
+            tmp = app.config_file + ".tmp"
+            with open(tmp, "w", encoding="utf-8") as f:
                 from ruamel import yaml as _ruamel_yaml
                 _yaml = _ruamel_yaml.YAML()
                 _yaml.dump(app.config, f)
+            os.rename(tmp, app.config_file)
             return jsonify({
                 "success": True,
                 "message": "Settings saved. Changes will take effect on next restart.",
@@ -775,10 +806,12 @@ def config_update():
 
     if changed:
         try:
-            with open(app.config_file, "w", encoding="utf-8") as f:
+            tmp = app.config_file + ".tmp"
+            with open(tmp, "w", encoding="utf-8") as f:
                 from ruamel import yaml as _ruamel_yaml
                 _yaml = _ruamel_yaml.YAML()
                 _yaml.dump(app.config, f)
+            os.rename(tmp, app.config_file)
             return jsonify({
                 "success": True,
                 "message": "API credentials saved. Restart required for changes to take effect.",

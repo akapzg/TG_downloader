@@ -4,8 +4,8 @@ on:
   push:
     tags:
       - 'v*'
-    branches:
-      - 'none'
+    branches-ignore:
+      - '**'
 
 jobs:
   docker:

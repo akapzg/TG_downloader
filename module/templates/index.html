@@ -805,7 +805,7 @@
     <footer class="app-footer">
       <div class="footer-badge">
         <span>🚀</span>
-        <span id="app_version">Loading...</span>
+        <span id="app_version_footer">Loading...</span>
       </div>
       <div class="footer-badge">
         <span>⚡</span>
@@ -820,8 +820,23 @@
     const $ = layui.$;
     const layer = layui.layer;
     
-    const aesKey = "{{ aes_key }}";
-    const aesIv = "{{ aes_iv }}";
+    // AES credentials are fetched after authentication
+    let aesKey = null;
+    let aesIv = null;
+    let aesReady = false;
+
+    async function fetchAesCredentials() {
+      try {
+        const res = await $.get("/api/aes_credentials");
+        if (res.aes_key && res.aes_iv) {
+          aesKey = res.aes_key;
+          aesIv = res.aes_iv;
+          aesReady = true;
+        }
+      } catch(e) {
+        console.error("Failed to fetch AES credentials:", e);
+      }
+    }
     
     function encrypt(word) {
       const key = CryptoJS.enc.Utf8.parse(aesKey);
@@ -833,6 +848,11 @@
     }
 
     function doWebLogin() {
+      if (!aesReady) {
+        $('#login_error').text('Encryption not ready — please wait...').show();
+        fetchAesCredentials().then(function() { doWebLogin(); });
+        return;
+      }
       var pValue = $('#login_password').val();
       if (!pValue) {
         $('#login_error').text('Please enter your password').show();
@@ -866,6 +886,10 @@
       $.get('/api/check_auth', function(res) {
         if (res.authenticated) {
           $('#login_overlay').addClass('hidden');
+          // Fetch AES credentials now that we're authenticated
+          if (!aesReady) {
+            fetchAesCredentials();
+          }
         } else {
           $('#login_overlay').removeClass('hidden');
           $('#login_password').focus();
@@ -878,8 +902,12 @@
     // ─── Periodic auth check (detect session expiry) ──────────────
     setInterval(checkAuth, 30000);
 
-    // ─── Initial auth check on page load ─────────────────────────
-    $(checkAuth);
+    // ─── Fetch AES credentials first, then check auth on page load
+    $(function() {
+      fetchAesCredentials().then(function() {
+        checkAuth();
+      });
+    });
   </script>
   <script>
     layui.use(['element', 'jquery'], function () {
@@ -891,9 +919,9 @@
 
       // ─── Load version ────────────────────────────────────────────
       $.get("get_app_version", function(res) {
-        $("#app_version").text(res);
+        $("#app_version, #app_version_footer").text(res);
       }).fail(function() {
-        $("#app_version").text("---");
+        $("#app_version, #app_version_footer").text("---");
       });
 
       // ─── Poll download status (global speed) ─────────────────────
@@ -961,9 +989,10 @@
               '</tr>';
           }
           $tbody.html(rowsHtml);
-        }).fail(function() {
-          // silent fail — keep existing rows
-        });
+    }).fail(function(jqXHR) {
+        if (jqXHR.status === 401 || jqXHR.status === 403) { location.reload(); return; }
+        // silent fail — keep existing rows
+      });
       };
 
       // ─── Download-sub tab switching ──────────────────────────────
@@ -1034,7 +1063,7 @@
       window.fetchVersion = function() {
         $.get("/api/version", function(res) {
           if (res.version) {
-            $("#app_version").text("v" + res.version);
+            $("#app_version, #app_version_footer").text("v" + res.version);
           }
         });
       };

@@ -97,7 +97,7 @@ def _move_to_download_path(temp_download_path: str, download_path: str):
     shutil.move(temp_download_path, download_path)
 
 
-def _check_timeout(retry: int, _: int):
+def _check_timeout(retry: int, message_id: int):
     """Check if message download timeout, then add message id into failed_ids
 
     Parameters
@@ -311,7 +311,10 @@ async def download_task(
 
     node.download_status[message.id] = download_status
 
-    file_size = os.path.getsize(file_name) if file_name else 0
+    try:
+        file_size = os.path.getsize(file_name) if file_name else 0
+    except OSError:
+        file_size = 0
 
     await upload_telegram_chat(
         client,
@@ -424,6 +427,8 @@ async def download_media(
 
             break
     except Exception as e:
+        if isinstance(e, (KeyboardInterrupt, SystemExit, asyncio.CancelledError)):
+            raise
         logger.error(
             f"Message[{message.id}]: "
             f"{_t('could not be downloaded due to following exception')}:\n[{e}].",
@@ -485,6 +490,8 @@ async def download_media(
                 )
         except Exception as e:
             # pylint: disable = C0301
+            if isinstance(e, (KeyboardInterrupt, SystemExit, asyncio.CancelledError)):
+                raise
             logger.error(
                 f"Message[{message.id}]: "
                 f"{_t('could not be downloaded due to following exception')}:\n[{e}].",

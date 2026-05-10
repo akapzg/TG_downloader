@@ -1,6 +1,6 @@
 services:
   telegram_media_downloader:
-    image: ghcr.io/akapzg/tg_downloader:latest
+    image: ghcr.io/akapzg/tg_downloader:latest  # If forked, change to your own ghcr.io/<user>/tg_downloader:latest
     container_name: tg_downloader
     ports:
       # Web UI port (edit if you changed web_port in config.yaml)
