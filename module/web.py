@@ -150,6 +150,8 @@ def login():
         web_login_form = {}
         for key, value in request.form.items():
             if value:
+                # jQuery $.post sends form-encoded data — "+" in base64 becomes " "
+                value = value.replace(" ", "+")
                 value = deAesCrypt.decrypt(value)
             web_login_form[key] = value
 
