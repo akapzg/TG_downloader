@@ -35,11 +35,15 @@ COPY module/   ./module/
 COPY utils/    ./utils/
 COPY media_downloader.py .
 COPY requirements.txt .
+COPY config.yaml.example .
+COPY entrypoint.sh .
 
 # Create directories for runtime data (mounted as volumes)
 RUN mkdir -p /app/log /app/sessions /app/temp /app/downloads
 
+RUN chmod +x /app/entrypoint.sh
+
 # Python unbuffered output for clean Docker logs
 ENV PYTHONUNBUFFERED=1
 
-CMD ["python", "-u", "media_downloader.py"]
+ENTRYPOINT ["/app/entrypoint.sh"]
