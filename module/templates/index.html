@@ -1063,7 +1063,7 @@
       window.fetchVersion = function() {
         $.get("/api/version", function(res) {
           if (res.version) {
-            $("#app_version, #app_version_footer").text("v" + res.version);
+            $("#app_version, #app_version_footer").text(res.version);
           }
         });
       };
