@@ -430,6 +430,9 @@
           <button class="tab-btn" data-tab="bot" onclick="switchMainTab('bot')">
             🤖 Bot
           </button>
+          <button class="tab-btn" data-tab="config" onclick="switchMainTab('config')">
+            ⚙️ Config
+          </button>
           <button class="tab-btn" data-tab="rclone" onclick="switchMainTab('rclone')">
             ☁️ Rclone
           </button>
@@ -601,6 +604,50 @@
           <div class="inline-block animate-spin text-4xl mb-3">⏳</div>
           <p class="text-gray-400 text-sm">Loading account information...</p>
         </div>
+      </div>
+    </div>
+
+    <!-- ========== CONFIG TAB content ========== -->
+    <div id="tab_config" class="main-card hidden">
+      <div class="p-6 min-h-[400px]">
+
+        <div id="config_form">
+          <h2 class="text-lg font-semibold text-gray-800 mb-4">⚙️ Telegram API Credentials</h2>
+          <p class="text-sm text-gray-400 mb-6">
+            Obtain these from <a href="https://my.telegram.org/apps" target="_blank" class="text-blue-500 underline">my.telegram.org</a> → API development tools.
+            Changes take effect after restart.
+          </p>
+
+          <div class="mb-5">
+            <label class="account-label block mb-1">API ID</label>
+            <input type="text" class="input-field font-mono" id="config_api_id"
+                   placeholder="12345678" autocomplete="off">
+          </div>
+
+          <div class="mb-5">
+            <label class="account-label block mb-1">API Hash</label>
+            <input type="text" class="input-field font-mono" id="config_api_hash"
+                   placeholder="a1b2c3d4e5f6..." autocomplete="off">
+            <p class="text-xs text-gray-400 mt-1" id="config_hash_current"></p>
+          </div>
+
+          <div class="flex items-center gap-3 mt-6">
+            <button class="btn-primary" id="btn_save_config" onclick="saveConfig()">
+              💾 Save Credentials
+            </button>
+            <button class="btn-secondary" onclick="loadConfig()">
+              🔄 Reload
+            </button>
+          </div>
+
+          <div id="config_status" class="mt-4 text-sm hidden"></div>
+        </div>
+
+        <div id="config_loading" class="text-center py-12 hidden">
+          <div class="inline-block animate-spin text-4xl mb-3">⏳</div>
+          <p class="text-gray-400 text-sm">Loading configuration...</p>
+        </div>
+
       </div>
     </div>
 
@@ -1016,6 +1063,7 @@
           $("#tab_dashboard").removeClass("hidden");
           $("#tab_account").addClass("hidden");
           $("#tab_bot").addClass("hidden");
+          $("#tab_config").addClass("hidden");
           $("#tab_rclone").addClass("hidden");
           $("#tab_logs").addClass("hidden");
           $("#toggle_area").show();
@@ -1029,6 +1077,7 @@
           $("#tab_dashboard").addClass("hidden");
           $("#tab_account").removeClass("hidden");
           $("#tab_bot").addClass("hidden");
+          $("#tab_config").addClass("hidden");
           $("#tab_rclone").addClass("hidden");
           $("#tab_logs").addClass("hidden");
           $("#toggle_area").hide();
@@ -1043,6 +1092,7 @@
           $("#tab_dashboard").addClass("hidden");
           $("#tab_account").addClass("hidden");
           $("#tab_bot").removeClass("hidden");
+          $("#tab_config").addClass("hidden");
           $("#tab_rclone").addClass("hidden");
           $("#tab_logs").addClass("hidden");
           $("#toggle_area").hide();
@@ -1051,10 +1101,23 @@
           if (accountPollTimer) { clearInterval(accountPollTimer); accountPollTimer = null; }
           // Load bot settings
           loadBotSettings();
+        } else if (tab === 'config') {
+          $("#tab_dashboard").addClass("hidden");
+          $("#tab_account").addClass("hidden");
+          $("#tab_bot").addClass("hidden");
+          $("#tab_config").removeClass("hidden");
+          $("#tab_rclone").addClass("hidden");
+          $("#tab_logs").addClass("hidden");
+          $("#toggle_area").hide();
+          $("#download_tabs").hide();
+          if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
+          if (accountPollTimer) { clearInterval(accountPollTimer); accountPollTimer = null; }
+          loadConfig();
         } else if (tab === 'rclone') {
           $("#tab_dashboard").addClass("hidden");
           $("#tab_account").addClass("hidden");
           $("#tab_bot").addClass("hidden");
+          $("#tab_config").addClass("hidden");
           $("#tab_rclone").removeClass("hidden");
           $("#tab_logs").addClass("hidden");
           $("#toggle_area").hide();
@@ -1066,6 +1129,7 @@
           $("#tab_dashboard").addClass("hidden");
           $("#tab_account").addClass("hidden");
           $("#tab_bot").addClass("hidden");
+          $("#tab_config").addClass("hidden");
           $("#tab_rclone").addClass("hidden");
           $("#tab_logs").removeClass("hidden");
           $("#toggle_area").hide();
@@ -1365,6 +1429,86 @@
       // ─── Bot status message helper ────────────────────────────────
       function showBotStatus(msg, type) {
         var $el = $("#bot_status");
+        $el.text(msg).removeClass("hidden");
+        if (type === "success") {
+          $el.removeClass("text-red-500").addClass("text-green-600");
+        } else {
+          $el.removeClass("text-green-600").addClass("text-red-500");
+        }
+      }
+
+      // ═══════════════════════════════════════════════════════════════
+      // CONFIG TAB LOGIC
+      // ═══════════════════════════════════════════════════════════════
+
+      window.loadConfig = function() {
+        $("#config_loading").removeClass("hidden");
+        $("#config_form").addClass("hidden");
+        $("#config_status").addClass("hidden");
+
+        $.get("/api/config/get", function(res) {
+          var data = typeof res === 'string' ? JSON.parse(res) : res;
+          $("#config_loading").addClass("hidden");
+          $("#config_form").removeClass("hidden");
+
+          if (data.success) {
+            $("#config_api_id").val(data.api_id || "");
+            $("#config_api_hash").val("");
+            if (data.api_hash_masked) {
+              $("#config_hash_current").text("Current: " + data.api_hash_masked);
+            } else {
+              $("#config_hash_current").text("Not configured");
+            }
+          } else {
+            showConfigStatus("Failed to load: " + (data.error || "Unknown error"), "error");
+          }
+        }).fail(function() {
+          $("#config_loading").addClass("hidden");
+          $("#config_form").removeClass("hidden");
+          showConfigStatus("Failed to load config (network error)", "error");
+        });
+      };
+
+      window.saveConfig = function() {
+        var $btn = $("#btn_save_config");
+        var api_id = $("#config_api_id").val().trim();
+        var api_hash = $("#config_api_hash").val().trim();
+
+        if (!api_hash) {
+          showConfigStatus("API Hash is required", "error");
+          return;
+        }
+
+        $btn.prop("disabled", true).text("Saving...");
+        $("#config_status").addClass("hidden");
+
+        $.ajax({
+          url: "/api/config/update",
+          method: "POST",
+          contentType: "application/json",
+          data: JSON.stringify({ api_id: api_id, api_hash: api_hash }),
+          success: function(res) {
+            var data = typeof res === 'string' ? JSON.parse(res) : res;
+            if (data.success) {
+              showConfigStatus(data.message || "Saved successfully", "success");
+              $("#config_api_hash").val("");
+              loadConfig();
+            } else {
+              showConfigStatus("Error: " + (data.error || "Save failed"), "error");
+            }
+            $btn.prop("disabled", false).text("💾 Save Credentials");
+          },
+          error: function(xhr) {
+            var msg = "Save failed";
+            try { var err = JSON.parse(xhr.responseText); msg = err.error || msg; } catch(e) {}
+            showConfigStatus("Error: " + msg, "error");
+            $btn.prop("disabled", false).text("💾 Save Credentials");
+          }
+        });
+      };
+
+      function showConfigStatus(msg, type) {
+        var $el = $("#config_status");
         $el.text(msg).removeClass("hidden");
         if (type === "success") {
           $el.removeClass("text-red-500").addClass("text-green-600");

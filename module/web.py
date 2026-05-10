@@ -737,6 +737,72 @@ def rclone_update():
         "message": "No changes detected.",
     })
 
+# ═══════════════════════════════════════════════════════════════════════
+# Core config API (api_id / api_hash)
+# ═══════════════════════════════════════════════════════════════════════
+
+@_flask_app.route("/api/config/get")
+@login_required
+def config_get():
+    """Return core config: api_id and masked api_hash."""
+    app = _app_ref
+    if not app:
+        return jsonify({"success": False, "error": "App not ready"}), 500
+
+    api_hash = app.api_hash or ""
+    masked = ""
+    if api_hash:
+        masked = api_hash[:4] + "****" + api_hash[-4:] if len(api_hash) > 8 else "****"
+    return jsonify({
+        "success": True,
+        "api_id": app.api_id or "",
+        "api_hash_masked": masked,
+    })
+
+
+@_flask_app.route("/api/config/update", methods=["POST"])
+@login_required
+def config_update():
+    """Update api_id / api_hash and persist to config file."""
+    app = _app_ref
+    if not app:
+        return jsonify({"success": False, "error": "App not ready"}), 500
+
+    data = request.get_json(force=True, silent=True) or {}
+    changed = False
+
+    if "api_id" in data:
+        val = str(data.get("api_id") or "").strip()
+        if val and val != str(app.api_id):
+            app.api_id = val
+            app.config["api_id"] = val
+            changed = True
+
+    if "api_hash" in data:
+        val = str(data.get("api_hash") or "").strip()
+        if val and val != app.api_hash:
+            app.api_hash = val
+            app.config["api_hash"] = val
+            changed = True
+
+    if changed:
+        try:
+            with open(app.config_file, "w", encoding="utf-8") as f:
+                from ruamel import yaml as _ruamel_yaml
+                _yaml = _ruamel_yaml.YAML()
+                _yaml.dump(app.config, f)
+            return jsonify({
+                "success": True,
+                "message": "API credentials saved. Restart required for changes to take effect.",
+            })
+        except Exception as e:
+            return jsonify({"success": False, "error": f"Failed to save config: {e}"}), 500
+
+    return jsonify({
+        "success": True,
+        "message": "No changes detected.",
+    })
+
 @_flask_app.route("/api/version")
 def get_version():
     """Get project version."""
