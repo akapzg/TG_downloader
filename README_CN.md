@@ -4,9 +4,9 @@
 
 本项目基于原项目进行现代化重构与 Docker 化改造。
 
-[中文 README](README_CN.md)
+[English README](README.md)
 
-## Overview
+## 概述
 本项目是一个支持 Telegram 媒体文件（音频、视频、图片等）自动下载的工具。已完全容器化，支持 Web 端管理与认证。
 
 ## 部署说明
