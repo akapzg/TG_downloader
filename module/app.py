@@ -399,6 +399,7 @@ class Application:
         self.web_port: int = 5000
         self.max_download_task: int = 5
         self.language = Language.EN
+        self.me_info: dict = None  # cached get_me() for web status (avoids cross-thread Pyrogram access)
         self.after_upload_telegram_delete: bool = True
         self.web_login_secret: str = ""
         self.debug_web: bool = False

@@ -57,6 +57,34 @@
     }
     .tab-btn:hover { color: #374151; }
 
+    /* ---------- Sub-tab buttons (smaller, for Dashboard subtabs) ---------- */
+    .tab-btn-sm {
+      padding: 6px 18px;
+      font-size: 13px;
+    }
+
+    /* ---------- Icon action buttons (pause/resume, GitHub) ---------- */
+    .icon-btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 36px;
+      height: 36px;
+      border-radius: 10px;
+      border: none;
+      cursor: pointer;
+      transition: all 0.25s ease;
+      background: transparent;
+      color: #6b7280;
+      font-size: 18px;
+      text-decoration: none;
+    }
+    .icon-btn:hover { background: #f3f4f6; color: #374151; }
+    .icon-btn.pause { background: #fee2e2; color: #dc2626; }
+    .icon-btn.pause:hover { background: #fecaca; }
+    .icon-btn.continue { background: #dcfce7; color: #16a34a; }
+    .icon-btn.continue:hover { background: #bbf7d0; }
+
     /* ---------- Toggle button ---------- */
     .toggle-btn {
       padding: 10px 28px;
@@ -406,9 +434,9 @@
     <div class="login-card">
       <div class="icon">🔒</div>
       <h2>Telegram Media Downloader</h2>
-      <div class="sub">Enter password to continue</div>
-      <input type="password" class="input-p" id="login_password" placeholder="Password" autocomplete="current-password">
-      <button class="btn-login" id="btn_login" onclick="doWebLogin()">Confirm</button>
+      <div class="sub" data-i18n="Enter password to continue">Enter password to continue</div>
+      <input type="password" class="input-p" id="login_password" data-i18n="Password" placeholder="Password" autocomplete="current-password">
+      <button class="btn-login" id="btn_login" onclick="doWebLogin()" data-i18n="Confirm">Confirm</button>
       <div class="error-msg" id="login_error"></div>
     </div>
   </div>
@@ -418,35 +446,45 @@
 
     <!-- ========== Header card ========== -->
     <div class="main-card mb-6">
-      <div class="flex flex-col sm:flex-row sm:justify-between sm:items-center px-6 pt-5 pb-0">
+      <div class="flex flex-wrap items-center justify-center gap-2 px-6 py-3">
         <!-- Tabs -->
         <div class="flex space-x-0 overflow-x-auto pb-1 -mb-1" id="tabs">
-          <button class="tab-btn tab-active" data-tab="dashboard" onclick="switchMainTab('dashboard')">
-            📊 Dashboard <span id="app_version" class="text-xs text-gray-500 ml-1"></span>
+          <button class="tab-btn tab-active" data-tab="dashboard" onclick="switchMainTab('dashboard')" data-i18n="📊 Dashboard">
+            📊 Dashboard
           </button>
-          <button class="tab-btn" data-tab="account" onclick="switchMainTab('account')">
+          <button class="tab-btn" data-tab="account" onclick="switchMainTab('account')" data-i18n="👤 Account">
             👤 Account
           </button>
-          <button class="tab-btn" data-tab="bot" onclick="switchMainTab('bot')">
+          <button class="tab-btn" data-tab="bot" onclick="switchMainTab('bot')" data-i18n="🤖 Bot">
             🤖 Bot
           </button>
-          <button class="tab-btn" data-tab="config" onclick="switchMainTab('config')">
+          <button class="tab-btn" data-tab="config" onclick="switchMainTab('config')" data-i18n="⚙️ Config">
             ⚙️ Config
           </button>
-          <button class="tab-btn" data-tab="rclone" onclick="switchMainTab('rclone')">
+          <button class="tab-btn" data-tab="rclone" onclick="switchMainTab('rclone')" data-i18n="☁️ Rclone">
             ☁️ Rclone
           </button>
-          <button class="tab-btn" data-tab="logs" onclick="switchMainTab('logs')">
+          <button class="tab-btn" data-tab="logs" onclick="switchMainTab('logs')" data-i18n="📝 Logs">
             📝 Logs
           </button>
         </div>
-        <!-- Toggle (Dashboard only) -->
-        <div class="pt-3 sm:pt-0 pb-4 sm:pb-0" id="toggle_area">
+        <!-- Toggle & actions (Dashboard only) -->
+        <div class="flex items-center gap-2" id="toggle_area">
           <button id="download_state"
                   data-value="{{ download_state }}"
                   onclick="download_state_change(this)"
-                  class="toggle-btn {{ 'pause' if download_state == 'pause' else 'continue' }}">
-            {{ '⏸ Pause' if download_state == 'pause' else '▶ Resume' }}
+                  class="icon-btn {{ 'pause' if download_state == 'pause' else 'continue' }}"
+                  title="{{ 'Resume' if download_state == 'pause' else 'Pause' }}">
+            {{ '▶' if download_state == 'pause' else '⏸' }}
+          </button>
+          <a href="https://github.com/akapzg/TG_downloader" target="_blank" 
+             class="icon-btn" title="GitHub">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/>
+            </svg>
+          </a>
+          <button id="lang_toggle" class="icon-btn" data-i18n-title="Switch Language" title="Switch Language" onclick="toggleLang()">
+            🌐
           </button>
         </div>
       </div>
@@ -455,11 +493,11 @@
     <!-- ========== DASHBOARD TAB content ========== -->
     <div id="tab_dashboard" class="main-card">
       <!-- Download sub-tabs -->
-      <div class="flex space-x-0 overflow-x-auto pb-1 -mb-1 px-6 pt-4 border-b border-gray-100" id="download_tabs">
-        <button class="tab-btn tab-active" data-tab="0" onclick="switchTab(0)">
+      <div class="flex space-x-0 overflow-x-auto px-6 pt-2 pb-1 border-b border-gray-100" id="download_tabs">
+        <button class="tab-btn tab-btn-sm tab-active" data-tab="0" onclick="switchTab(0)" data-i18n="📥 Downloading">
           📥 Downloading
         </button>
-        <button class="tab-btn" data-tab="1" onclick="switchTab(1)">
+        <button class="tab-btn tab-btn-sm" data-tab="1" onclick="switchTab(1)" data-i18n="✅ Downloaded">
           ✅ Downloaded
         </button>
       </div>
@@ -468,12 +506,12 @@
         <table id="download_list" class="layui-table" lay-filter="download_list">
           <thead>
             <tr>
-              <th>Channel</th>
+              <th data-i18n="Channel">Channel</th>
               <th>ID</th>
-              <th>File Name</th>
-              <th>Size</th>
-              <th>Progress</th>
-              <th>Speed</th>
+              <th data-i18n="File Name">File Name</th>
+              <th data-i18n="Size">Size</th>
+              <th data-i18n="Progress">Progress</th>
+              <th data-i18n="Speed">Speed</th>
             </tr>
           </thead>
           <tbody id="list_body">
@@ -484,7 +522,7 @@
         <!-- Empty state -->
         <div id="empty_state" class="empty-state hidden">
           <div class="icon">📭</div>
-          <div class="text">No tasks yet</div>
+          <div class="text" data-i18n="No tasks yet">No tasks yet</div>
         </div>
       </div>
     </div>
@@ -542,14 +580,14 @@
         <div id="account_logged_out" class="hidden">
           <div class="text-center mb-6">
             <div class="text-5xl mb-3">🔒</div>
-            <h2 class="text-xl font-semibold text-gray-700 mb-1">Not Logged In</h2>
-            <p class="text-sm text-gray-400">Login to your Telegram account to start downloading</p>
+            <h2 class="text-xl font-semibold text-gray-700 mb-1" data-i18n="Not Logged In">Not Logged In</h2>
+            <p class="text-sm text-gray-400" data-i18n="Login to your Telegram account to start downloading">Login to your Telegram account to start downloading</p>
           </div>
 
           <!-- Step 1: Phone -->
           <div id="auth_step_phone" class="max-w-md mx-auto">
             <div class="auth-step">
-              <label class="account-label block mb-1">Phone Number</label>
+              <label class="account-label block mb-1" data-i18n="Phone Number">Phone Number</label>
               <input type="text" class="input-field" id="tg_phone"
                      placeholder="+8613800138000" autocomplete="tel">
               <p class="text-xs text-gray-400 mt-1">International format with country code</p>
@@ -748,7 +786,7 @@
 
         <!-- Bot settings form -->
         <div id="bot_settings_form">
-          <h2 class="text-lg font-semibold text-gray-800 mb-4">🤖 Bot Configuration</h2>
+          <h2 class="text-lg font-semibold text-gray-800 mb-4" data-i18n="🤖 Bot Configuration">🤖 Bot Configuration</h2>
           <p class="text-sm text-gray-400 mb-6">
             Configure the Telegram bot that manages downloads.
             Changes are saved to the config file and take effect after restart.
@@ -756,7 +794,7 @@
 
           <!-- Bot Token -->
           <div class="mb-5">
-            <label class="account-label block mb-1">Bot Token</label>
+            <label class="account-label block mb-1" data-i18n="Bot Token">Bot Token</label>
             <input type="text" class="input-field font-mono text-sm" id="bot_token"
                    placeholder="1234567890:ABCdefGHIjklMNOpqrsTUVwxyz"
                    autocomplete="off">
@@ -768,7 +806,7 @@
 
           <!-- Allowed User IDs -->
           <div class="mb-5">
-            <label class="account-label block mb-1">Allowed User IDs</label>
+            <label class="account-label block mb-1" data-i18n="Allowed User IDs">Allowed User IDs</label>
             <textarea class="input-field font-mono text-sm" id="allowed_user_ids"
                       rows="4" style="resize: vertical; min-height: 80px;"
                       placeholder="123456789, 987654321"></textarea>
@@ -780,10 +818,10 @@
 
           <!-- Action buttons -->
           <div class="flex items-center gap-3 mt-6">
-            <button class="btn-primary" id="btn_save_bot" onclick="saveBotSettings()">
+            <button class="btn-primary" id="btn_save_bot" onclick="saveBotSettings()" data-i18n="💾 Save Settings">
               💾 Save Settings
             </button>
-            <button class="btn-secondary" onclick="loadBotSettings()">
+            <button class="btn-secondary" onclick="loadBotSettings()" data-i18n="🔄 Reload">
               🔄 Reload
             </button>
           </div>
@@ -795,7 +833,7 @@
         <!-- Loading spinner -->
         <div id="bot_loading" class="text-center py-12 hidden">
           <div class="inline-block animate-spin text-4xl mb-3">⏳</div>
-          <p class="text-gray-400 text-sm">Loading bot configuration...</p>
+          <p class="text-gray-400 text-sm" data-i18n="Loading bot configuration...">Loading bot configuration...</p>
         </div>
 
       </div>
@@ -819,6 +857,76 @@
     // ─── Global login helpers ──
     const $ = layui.$;
     const layer = layui.layer;
+
+    // ─── i18n translations ──────────────────────────────────────────
+    const I18N = {
+      zh: {
+        "📊 Dashboard": "📊 仪表盘",
+        "👤 Account": "👤 账号",
+        "🤖 Bot": "🤖 机器人",
+        "⚙️ Config": "⚙️ 配置",
+        "☁️ Rclone": "☁️ 云盘",
+        "📝 Logs": "📝 日志",
+        "📥 Downloading": "📥 下载中",
+        "✅ Downloaded": "✅ 已下载",
+        "Not Logged In": "未登录",
+        "Login to your Telegram account to start downloading": "登录 Telegram 账号以开始下载",
+        "Channel": "频道",
+        "File Name": "文件名",
+        "Size": "大小",
+        "Progress": "进度",
+        "Speed": "速度",
+        "No tasks yet": "暂无任务",
+        "Phone Number": "手机号",
+        "💾 Save Settings": "💾 保存设置",
+        "🔄 Reload": "🔄 刷新",
+        "Loading...": "加载中...",
+        "🤖 Bot Configuration": "🤖 机器人配置",
+        "Allowed User IDs": "授权用户 ID",
+        "Bot Token": "Bot Token",
+        "Password": "密码",
+        "Enter password to continue": "输入密码以继续",
+        "Confirm": "确认",
+        "Loading bot configuration...": "加载机器人配置中...",
+        "Loading config...": "加载配置中...",
+        "Loading rclone config...": "加载云盘配置中...",
+        "Switch Language": "切换语言",
+      },
+      en: {}
+    };
+
+    var currentLang = localStorage.getItem("tgdl_lang") || "en";
+
+    function t(key) {
+      if (currentLang === "zh" && I18N.zh[key]) return I18N.zh[key];
+      return key;
+    }
+
+    window.toggleLang = function() {
+      currentLang = currentLang === "en" ? "zh" : "en";
+      localStorage.setItem("tgdl_lang", currentLang);
+      applyLanguage();
+    };
+
+    function applyLanguage() {
+      // Update all elements with data-i18n attribute
+      document.querySelectorAll("[data-i18n]").forEach(function(el) {
+        var key = el.getAttribute("data-i18n");
+        if (el.tagName === "INPUT" && el.type === "text") {
+          el.placeholder = t(key);
+        } else {
+          el.textContent = t(key);
+        }
+      });
+      // Update title attributes
+      document.querySelectorAll("[data-i18n-title]").forEach(function(el) {
+        el.setAttribute("title", t(el.getAttribute("data-i18n-title")));
+      });
+    }
+
+    // Apply language on load
+    $(function() { applyLanguage(); });
+
     
     // AES credentials are fetched after authentication
     let aesKey = null;
@@ -919,9 +1027,9 @@
 
       // ─── Load version ────────────────────────────────────────────
       $.get("get_app_version", function(res) {
-        $("#app_version, #app_version_footer").text(res);
+        $("#app_version_footer").text(res);
       }).fail(function() {
-        $("#app_version, #app_version_footer").text("---");
+        $("#app_version_footer").text("---");
       });
 
       // ─── Poll download status (global speed) ─────────────────────
@@ -1026,9 +1134,9 @@
         $.post("set_download_state?state=" + encodeURIComponent(state), function(res) {
           $el.data("value", res);
           if (res === "pause") {
-            $el.text("⏸ Pause").removeClass("continue").addClass("pause");
+            $el.text("▶").removeClass("continue").addClass("pause").attr("title", "Resume");
           } else {
-            $el.text("▶ Resume").removeClass("pause").addClass("continue");
+            $el.text("⏸").removeClass("pause").addClass("continue").attr("title", "Pause");
           }
         }).fail(function() {
           console.warn("Toggle state failed");
@@ -1063,7 +1171,7 @@
       window.fetchVersion = function() {
         $.get("/api/version", function(res) {
           if (res.version) {
-            $("#app_version, #app_version_footer").text(res.version);
+            $("#app_version_footer").text(res.version);
           }
         });
       };

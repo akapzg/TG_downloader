@@ -642,6 +642,17 @@ async def start_server(client: pyrogram.Client):
     Start the server using the provided client.
     """
     await client.start()
+    # Cache user info for web status endpoint
+    # (avoids cross-thread Pyrogram access in Flask handlers)
+    me = await client.get_me()
+    app.me_info = {
+        "user_id": me.id,
+        "username": me.username,
+        "first_name": me.first_name,
+        "last_name": me.last_name,
+        "phone_number": me.phone_number,
+        "is_bot": me.is_bot,
+    }
 
 
 async def stop_server(client: pyrogram.Client):

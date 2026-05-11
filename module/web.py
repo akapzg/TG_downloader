@@ -238,14 +238,22 @@ def get_download_list():
         return "[]"
 
     already_down = request.args.get("already_down") == "true"
+    app = _app_ref
 
     download_result = get_download_result()
     result = []
+
+    # ── Collect in-memory records ──────────────────────────────────
     for chat_id, messages in download_result.items():
         for idx, value in messages.items():
             is_already_down = value["down_byte"] == value["total_size"]
 
             if already_down and not is_already_down:
+                continue
+            if not already_down and is_already_down:
+                # Persist completed records so they survive restarts
+                if app:
+                    _append_download_history(app, chat_id, idx, value)
                 continue
 
             download_speed = format_byte(value["download_speed"]) + "/s"
@@ -256,10 +264,56 @@ def get_download_list():
                 "total_size": format_byte(value["total_size"]),
                 "download_progress": f"{round(value['down_byte'] / value['total_size'] * 100, 1)}",
                 "download_speed": download_speed,
-                "save_path": value["file_name"].replace("\\", "/"),
+                "save_path": value["file_name"].replace("\\\\", "/"),
             })
 
+    if already_down:
+        # Persist in-memory completed records
+        for chat_id, messages in download_result.items():
+            for idx, value in messages.items():
+                if value["down_byte"] == value["total_size"]:
+                    if app:
+                        _append_download_history(app, chat_id, idx, value)
+
+        # Merge persisted history
+        if app and app.app_data.get("download_history"):
+            seen = {(r["chat"], r["id"]) for r in result}
+            for rec in app.app_data["download_history"]:
+                key = (str(rec.get("chat", "")), str(rec.get("id", "")))
+                if key not in seen:
+                    seen.add(key)
+                    result.append(rec)
+
     return json.dumps(result)
+
+
+def _append_download_history(app, chat_id, idx, value):
+    """Append a completed download record to persistent history."""
+    if "download_history" not in app.app_data:
+        app.app_data["download_history"] = []
+    history = app.app_data["download_history"]
+    # Dedup: replace if same chat+id already exists
+    for i, rec in enumerate(history):
+        if str(rec.get("chat", "")) == str(chat_id) and str(rec.get("id", "")) == str(idx):
+            history[i] = {
+                "chat": str(chat_id),
+                "id": str(idx),
+                "filename": os.path.basename(value["file_name"]),
+                "total_size": format_byte(value["total_size"]),
+                "download_progress": "100.0",
+                "download_speed": "0 B/s",
+                "save_path": value["file_name"].replace("\\\\", "/"),
+            }
+            return
+    history.append({
+        "chat": str(chat_id),
+        "id": str(idx),
+        "filename": os.path.basename(value["file_name"]),
+        "total_size": format_byte(value["total_size"]),
+        "download_progress": "100.0",
+        "download_speed": "0 B/s",
+        "save_path": value["file_name"].replace("\\\\", "/"),
+    })
 
 
 # ═══════════════════════════════════════════════════════════════════════
@@ -325,57 +379,18 @@ def tg_status():
     if not app:
         return jsonify({"logged_in": False, "error": "App not ready"})
 
-    # Reuse the application's existing client if available and connected
-    client = getattr(app, "client", None)
-    if client and getattr(client, "is_connected", False):
-        try:
-            me = app.loop.run_until_complete(client.get_me())
-            return jsonify({
-                "logged_in": True,
-                "user_id": me.id,
-                "username": me.username,
-                "first_name": me.first_name,
-                "last_name": me.last_name,
-                "phone_number": me.phone_number,
-                "is_bot": me.is_bot,
-            })
-        except Exception as e:
-            return jsonify({"logged_in": False, "error": str(e)})
+    # Use cached user info set at startup (avoids cross-thread Pyrogram access)
+    if app.me_info:
+        return jsonify({"logged_in": True, **app.me_info})
 
-    # Fallback: check if session file exists but client not connected yet
+    # Fallback: check if session file exists (e.g. before client fully starts)
     session_file = os.path.join(app.session_file_path, "media_downloader.session")
-    if os.path.exists(session_file):
-        # Try a minimal connect to check validity
-        try:
-            pyrogram = _get_lazy_pyrogram()
-            client = pyrogram.Client(
-                "media_downloader",
-                api_id=app.api_id,
-                api_hash=app.api_hash,
-                workdir=app.session_file_path,
-                in_memory=False,
-            )
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-            try:
-                loop.run_until_complete(client.connect())
-                me = loop.run_until_complete(client.get_me())
-                loop.run_until_complete(client.disconnect())
-                loop.close()
-                return jsonify({
-                    "logged_in": True,
-                    "user_id": me.id,
-                    "username": me.username,
-                    "first_name": me.first_name,
-                    "last_name": me.last_name,
-                    "phone_number": me.phone_number,
-                    "is_bot": me.is_bot,
-                })
-            except Exception as e:
-                loop.close()
-                return jsonify({"logged_in": False, "error": str(e)})
-        except Exception as e:
-            return jsonify({"logged_in": False, "error": str(e)})
+    if os.path.exists(session_file) and os.path.getsize(session_file) >= 64:
+        return jsonify({"logged_in": True, "user_id": "---",
+                         "username": None, "first_name": "---",
+                         "last_name": None, "phone_number": None,
+                         "is_bot": False})
+
     return jsonify({"logged_in": False, "reason": "no_session"})
 
 
@@ -578,7 +593,20 @@ def bot_get():
     if not app:
         return jsonify({"success": False, "error": "App not ready"}), 500
 
-    allowed_ids = list(app.allowed_user_ids) if app.allowed_user_ids else []
+    # Prefer bot-resolved allowed_user_ids (includes auto-added admin)
+    bot_ids = []
+    try:
+        from module.bot import _bot
+        if _bot and _bot.allowed_user_ids:
+            bot_ids = [int(uid) if isinstance(uid, str) and uid.isdigit() else uid
+                       for uid in _bot.allowed_user_ids]
+    except Exception:
+        pass
+
+    # Fall back to config value if bot hasn't resolved yet
+    config_ids = list(app.allowed_user_ids) if app.allowed_user_ids else []
+    allowed_ids = bot_ids if bot_ids else config_ids
+
     return jsonify({
         "success": True,
         "bot_token": app.bot_token or "",

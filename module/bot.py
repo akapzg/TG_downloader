@@ -356,11 +356,8 @@ async def send_help_str(client: pyrogram.Client, chat_id):
         [
             [
                 InlineKeyboardButton(
-                    "Github",
-                    url="https://github.com/tangyoha/telegram_media_downloader/releases",
-                ),
-                InlineKeyboardButton(
-                    "Join us", url="https://t.me/TeegramMediaDownload"
+                    "GitHub",
+                    url="https://github.com/akapzg/TG_downloader",
                 ),
             ]
         ]
@@ -379,7 +376,7 @@ async def send_help_str(client: pyrogram.Client, chat_id):
 
     msg = (
         f"`\n🤖 {_t('Telegram Media Downloader')}\n"
-        f"🌐 {_t('Version')}: {utils.__version__}`\n"
+        f"🌐 {_t('Version')}: {os.environ.get('APP_VERSION', utils.__version__)}`\n"
         f"{latest_release_str}\n"
         f"{_t('Available commands:')}\n"
         f"/help - {_t('Show available commands')}\n"
