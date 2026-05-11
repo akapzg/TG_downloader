@@ -1,5 +1,6 @@
 """Download Stat"""
 import asyncio
+import threading
 import time
 from enum import Enum
 
@@ -20,12 +21,14 @@ _total_download_speed: int = 0
 _total_download_size: int = 0
 _last_download_time: float = time.time()
 _download_state: DownloadState = DownloadState.Downloading
-_stat_lock: asyncio.Lock = asyncio.Lock()
+_stat_lock = threading.Lock()
 
 
 def get_download_result() -> dict:
-    """get global download result"""
-    return _download_result
+    """get global download result (thread-safe, returns deep copy)"""
+    import copy
+    with _stat_lock:
+        return copy.deepcopy(_download_result)
 
 
 def get_total_download_speed() -> int:
@@ -71,7 +74,7 @@ async def update_download_status(
             client.stop_transmission()
         await asyncio.sleep(1)
 
-    async with _stat_lock:
+    with _stat_lock:
         if not _download_result.get(chat_id):
             _download_result[chat_id] = {}
 
