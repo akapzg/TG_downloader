@@ -11,6 +11,8 @@
 ## 概述
 Telegram 媒体自动下载工具，现代化 Web UI，Docker 一键部署，多架构支持 (amd64/arm64)。
 
+![Screenshots](module/static/screenshots.gif)
+
 ## 部署
 
 ### 前置条件

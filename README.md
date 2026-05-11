@@ -11,6 +11,8 @@ Image hosted at [`ghcr.io/akapzg/tg_downloader`](https://github.com/akapzg/TG_do
 ## Overview
 Automated Telegram media downloader with modern Web UI. Docker one-click deploy, multi-arch support (amd64/arm64).
 
+![Screenshots](module/static/screenshots.gif)
+
 ## Deployment
 
 ### Prerequisites
