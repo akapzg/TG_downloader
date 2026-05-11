@@ -334,9 +334,7 @@ def _cleanup_auth_state(sid: str):
         state = _tg_auth_states.pop(sid, None)
     if state and state.client:
         try:
-            loop = asyncio.new_event_loop()
-            loop.run_until_complete(state.client.disconnect())
-            loop.close()
+            asyncio.run(state.client.disconnect())
         except Exception:
             pass
 
@@ -412,14 +410,16 @@ def tg_login_start():
     _cleanup_auth_state(sid)  # remove any previous attempt
 
     try:
-        client = _make_client(phone_number)
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
         try:
-            loop.run_until_complete(client.connect())
-            sent_code = loop.run_until_complete(
-                client.send_code(phone_number)
-            )
+            client = _make_client(phone_number)
+
+            async def _do_login():
+                await client.connect()
+                return await client.send_code(phone_number)
+
+            sent_code = loop.run_until_complete(_do_login())
             phone_code_hash = sent_code.phone_code_hash
 
             state = TgAuthState(
@@ -438,9 +438,9 @@ def tg_login_start():
                 "timeout": getattr(sent_code, "timeout", 60),
                 "type": str(sent_code.type),
             })
-        except Exception:
+        finally:
             loop.close()
-            raise
+            asyncio.set_event_loop(None)
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 400
 
@@ -461,44 +461,41 @@ def tg_verify_code():
         return jsonify({"success": False, "error": "No pending login. Start with phone number first."}), 400
 
     try:
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        try:
-            user = loop.run_until_complete(
-                state.client.sign_in(
+        async def _do_verify():
+            try:
+                user = await state.client.sign_in(
                     phone_number=state.phone_number,
                     phone_code_hash=state.phone_code_hash,
                     phone_code=code,
                 )
-            )
-            # Success – session is auto-saved by Pyrogram
-            loop.run_until_complete(state.client.disconnect())
-            loop.close()
+                await state.client.disconnect()
+                return {"step": "done", "user": user}
+            except Exception as e:
+                error_str = str(e)
+                if "SESSION_PASSWORD_NEEDED" in error_str or "2fa" in error_str.lower():
+                    return {"step": "2fa", "error": e}
+                raise
 
+        result = asyncio.run(_do_verify())
+        if result["step"] == "done":
             _cleanup_auth_state(sid)
             return jsonify({
                 "success": True,
                 "step": "done",
-                "user_id": user.id,
-                "first_name": user.first_name,
-                "username": user.username,
+                "user_id": result["user"].id,
+                "first_name": result["user"].first_name,
+                "username": result["user"].username,
             })
-        except Exception as e:
-            error_str = str(e)
-            # Pyrogram raises BadRequest with "SESSION_PASSWORD_NEEDED"
-            # when 2FA is enabled
-            if "SESSION_PASSWORD_NEEDED" in error_str or "2fa" in error_str.lower():
-                state.step = "2fa"
-                with _tg_auth_states_lock:
-                    _tg_auth_states[sid] = state
-                loop.close()
-                return jsonify({
-                    "success": True,
-                    "step": "2fa",
-                    "hint": getattr(e, "hint", "Two-factor authentication is required"),
-                })
-            loop.close()
-            raise
+        else:
+            # 2FA needed
+            state.step = "2fa"
+            with _tg_auth_states_lock:
+                _tg_auth_states[sid] = state
+            return jsonify({
+                "success": True,
+                "step": "2fa",
+                "hint": getattr(result["error"], "hint", "Two-factor authentication is required"),
+            })
     except Exception as e:
         _cleanup_auth_state(sid)
         return jsonify({"success": False, "error": str(e)}), 400
@@ -520,26 +517,20 @@ def tg_verify_2fa():
         return jsonify({"success": False, "error": "No pending 2FA verification. Start with phone number first."}), 400
 
     try:
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        try:
-            user = loop.run_until_complete(
-                state.client.check_password(password)
-            )
-            loop.run_until_complete(state.client.disconnect())
-            loop.close()
+        async def _do_2fa():
+            user = await state.client.check_password(password)
+            await state.client.disconnect()
+            return user
 
-            _cleanup_auth_state(sid)
-            return jsonify({
-                "success": True,
-                "step": "done",
-                "user_id": user.id,
-                "first_name": user.first_name,
-                "username": user.username,
-            })
-        except Exception:
-            loop.close()
-            raise
+        user = asyncio.run(_do_2fa())
+        _cleanup_auth_state(sid)
+        return jsonify({
+            "success": True,
+            "step": "done",
+            "user_id": user.id,
+            "first_name": user.first_name,
+            "username": user.username,
+        })
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 400
 
