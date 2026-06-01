@@ -513,16 +513,25 @@ async def download_media(
         except DownloadCancelledByUser as e:
             logger.info(f"Message[{message.id}]: {e}")
             break
+        except DownloadSizeMismatchError as e:
+            logger.warning(f"Message[{message.id}]: {e}. Retrying...")
+            await asyncio.sleep(RETRY_TIME_OUT)
+            if _check_timeout(retry, message.id):
+                logger.error(f"Message[{message.id}]: Failed after 3 retries due to size mismatch.")
+                break
         except Exception as e:
             # pylint: disable = C0301
             if isinstance(e, (KeyboardInterrupt, SystemExit, asyncio.CancelledError)):
                 raise
-            logger.error(
-                f"Message[{message.id}]: "
-                f"{_t('could not be downloaded due to following exception')}:\n[{e}].",
-                exc_info=True,
-            )
-            break
+            logger.warning(f"Message[{message.id}]: Exception [{e}]. Retrying...")
+            await asyncio.sleep(RETRY_TIME_OUT)
+            if _check_timeout(retry, message.id):
+                logger.error(
+                    f"Message[{message.id}]: "
+                    f"{_t('could not be downloaded due to following exception')}:\n[{e}].",
+                    exc_info=True,
+                )
+                break
 
     return DownloadStatus.FailedDownload, None
 
