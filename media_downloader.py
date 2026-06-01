@@ -505,6 +505,7 @@ async def download_media(
                 f"{_t('retrying after')} {RETRY_TIME_OUT} {_t('seconds')}"
             )
             await asyncio.sleep(RETRY_TIME_OUT)
+            message = await fetch_message(client, message)
             if _check_timeout(retry, message.id):
                 logger.error(
                     f"Message[{message.id}]: {_t('Timing out after 3 retries, download skipped.')}"
@@ -516,6 +517,7 @@ async def download_media(
         except DownloadSizeMismatchError as e:
             logger.warning(f"Message[{message.id}]: {e}. Retrying...")
             await asyncio.sleep(RETRY_TIME_OUT)
+            message = await fetch_message(client, message)
             if _check_timeout(retry, message.id):
                 logger.error(f"Message[{message.id}]: Failed after 3 retries due to size mismatch.")
                 break
@@ -525,6 +527,7 @@ async def download_media(
                 raise
             logger.warning(f"Message[{message.id}]: Exception [{e}]. Retrying...")
             await asyncio.sleep(RETRY_TIME_OUT)
+            message = await fetch_message(client, message)
             if _check_timeout(retry, message.id):
                 logger.error(
                     f"Message[{message.id}]: "
