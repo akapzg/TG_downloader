@@ -53,6 +53,13 @@ _flask_app.config["PERMANENT_SESSION_LIFETIME"] = timedelta(minutes=30)
 _login_manager = LoginManager()
 _login_manager.login_view = "login"
 _login_manager.init_app(_flask_app)
+
+@_login_manager.unauthorized_handler
+def unauthorized():
+    if request.path.startswith("/api/"):
+        return jsonify({"success": False, "error": "Unauthorized"}), 401
+    return redirect("/login")
+
 web_login_users: dict = {}
 
 # ── Telegram auth state machine ──────────────────────────────────────

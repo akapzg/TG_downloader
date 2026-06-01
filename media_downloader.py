@@ -54,7 +54,8 @@ logging.getLogger("pyrogram").setLevel(logging.WARNING)
 
 
 class DownloadSizeMismatchError(Exception):
-    pass
+    def __str__(self):
+        return "Download size mismatch (likely cancelled or network error)"
 
 
 def _check_download_finish(media_size: int, download_path: str, ui_file_name: str):
@@ -460,6 +461,15 @@ async def download_media(
                     client,
                 ),
             )
+
+            # Check if this task was explicitly cancelled by the user or if the bot was paused
+            if getattr(app, "canceled_messages", None) and (node.chat_id, message_id) in app.canceled_messages:
+                logger.info(f"Message[{message_id}]: Task was cancelled by user.")
+                return DownloadStatus.FailedDownload, None
+            
+            if node.is_stop_transmission:
+                logger.info(f"Message[{message_id}]: Task paused.")
+                return DownloadStatus.FailedDownload, None
 
             if temp_download_path and isinstance(temp_download_path, str):
                 _check_download_finish(media_size, temp_download_path, ui_file_name)
