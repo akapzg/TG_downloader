@@ -459,6 +459,7 @@ async def download_media(
                     task_start_time,
                     node,
                     client,
+                    app,
                 ),
             )
 
