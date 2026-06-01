@@ -574,6 +574,37 @@ async def worker(client: pyrogram.client.Client):
             if node.is_stop_transmission:
                 continue
 
+            if getattr(node, "requires_user_client", False) and app.bot_token:
+                bot_id = app.bot_token.split(":")[0]
+                target_unique_id = None
+                if message.media and getattr(message, message.media.value, None):
+                    media_obj = getattr(message, message.media.value)
+                    target_unique_id = getattr(media_obj, "file_unique_id", None)
+                
+                user_message = None
+                if target_unique_id:
+                    async for msg in get_chat_history_v2(client, int(bot_id), limit=200):
+                        if not msg.media:
+                            continue
+                        msg_media = getattr(msg, msg.media.value, None)
+                        if msg_media and getattr(msg_media, "file_unique_id", None) == target_unique_id:
+                            user_message = msg
+                            break
+                
+                if user_message:
+                    logger.success(f"Message[{message.id}]: Bypassing 20MB Bot limit by using User Client for message {user_message.id}")
+                    # Temporarily clear node.client so download_task uses the User Client
+                    old_client = node.client
+                    node.client = None
+                    try:
+                        await download_task(client, user_message, node)
+                    finally:
+                        node.client = old_client
+                else:
+                    logger.error(f"Message[{message.id}]: Failed to find matching outgoing message for >20MB file bypass.")
+                    await download_task(node.client if node.client else client, message, node)
+                continue
+
             if node.client:
                 await download_task(node.client, message, node)
             else:

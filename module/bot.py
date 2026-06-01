@@ -861,6 +861,7 @@ async def direct_download(
     )
 
     node.is_running = True
+    return node
 
 
 async def download_forward_media(
@@ -878,7 +879,11 @@ async def download_forward_media(
     """
 
     if message.media and getattr(message, message.media.value):
-        await direct_download(_bot, message.from_user.id, message, message, client)
+        media = getattr(message, message.media.value)
+        file_size = getattr(media, "file_size", 0)
+        node = await direct_download(_bot, message.from_user.id, message, message, client)
+        if file_size > 20 * 1024 * 1024:
+            node.requires_user_client = True
         return
 
     await client.send_message(
