@@ -463,7 +463,7 @@ async def download_media(
             )
 
             # Check if this task was explicitly cancelled by the user or if the bot was paused
-            if getattr(app, "canceled_messages", None) and (node.chat_id, message_id) in app.canceled_messages:
+            if getattr(app, "canceled_messages", None) and (str(node.chat_id), str(message_id)) in app.canceled_messages:
                 logger.info(f"Message[{message_id}]: Task was cancelled by user.")
                 return DownloadStatus.FailedDownload, None
             
