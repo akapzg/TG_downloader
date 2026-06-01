@@ -843,8 +843,9 @@ def rclone_sync_trigger():
     if not app.cloud_drive_config.enable_upload_file:
         return jsonify({"success": False, "error": "Cloud upload is disabled in config."}), 400
 
-    # Execute sync in background
-    app.loop.create_task(app.sync_cloud_drive())
+    # Execute sync in background (thread-safe for asyncio)
+    import asyncio
+    asyncio.run_coroutine_threadsafe(app.sync_cloud_drive(), app.loop)
     return jsonify({"success": True, "message": "Manual sync started in the background."})
 
 # ═══════════════════════════════════════════════════════════════════════
