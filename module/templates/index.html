@@ -4,11 +4,10 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Telegram Media Downloader</title>
-  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 48 48'><path fill='%2329b6f6' d='M24 4A20 20 0 1 0 24 44A20 20 0 1 0 24 4Z'/><path fill='%23fff' d='M33.95 14.55l-3.72 17.52c-.28 1.26-1.03 1.57-2.08.98l-5.74-4.23-2.77 2.67c-.3.3-.56.56-1.15.56l.41-5.85 10.68-9.65c.46-.41-.1-.64-.72-.23L17.18 24.42l-5.7-1.78c-1.24-.39-1.26-1.24.26-1.83l22.28-8.58c1.03-.39 1.94.25 1.6 1.83z'/></svg>" type="image/svg+xml">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 48 48'%3E%3Cpath fill='%2329b6f6' d='M24 4A20 20 0 1 0 24 44A20 20 0 1 0 24 4Z'/%3E%3Cpath fill='%23fff' d='M24 12v15.2l-4.6-4.6L18 24l6 6 6-6-1.4-1.4-4.6 4.6V12h-2zm-8 22v2h16v-2H16z'/%3E%3C/svg%3E" type="image/svg+xml">
   <script src="https://cdn.tailwindcss.com"></script>
   <link href="static/layui/css/layui.css" rel="stylesheet">
   <script src="static/layui/layui.js"></script>
-  <script src="static/aes/crypto-js-master/crypto-js.js"></script>
 
   <!-- ==================== Custom CSS: override Layui defaults ==================== -->
   <style>
@@ -513,6 +512,7 @@
               <th data-i18n="Size">Size</th>
               <th data-i18n="Progress">Progress</th>
               <th data-i18n="Speed">Speed</th>
+              <th id="th_action">Action</th>
             </tr>
           </thead>
           <tbody id="list_body">
@@ -751,6 +751,37 @@
                 <span class="text-sm text-gray-700">Delete local file after upload</span>
               </label>
             </div>
+            
+            <hr class="my-6 border-gray-200">
+            
+            <!-- Warning block -->
+            <div id="rclone_conf_warning" class="hidden mb-4 p-4 text-sm text-orange-700 bg-orange-100 rounded-lg" role="alert">
+              ⚠️ <span class="font-semibold">rclone.conf is empty!</span> You must provide your rclone configuration below for upload to work.
+            </div>
+
+            <!-- Editor -->
+            <div class="mb-5">
+              <div class="flex justify-between items-end mb-2">
+                <div>
+                  <label class="account-label block">rclone.conf</label>
+                  <p class="text-xs text-gray-400">Paste the contents of your rclone.conf file generated on your local PC</p>
+                </div>
+              </div>
+              <textarea id="rclone_conf_editor" rows="8" class="input-field font-mono text-sm leading-tight p-3" placeholder="[my_drive]&#10;type = drive&#10;client_id = ...&#10;client_secret = ...&#10;scope = drive&#10;token = {...}"></textarea>
+              <button class="btn-secondary mt-3 text-sm px-4 py-1" id="btn_save_rclone_conf" onclick="saveRcloneConf()">
+                📝 Save rclone.conf
+              </button>
+            </div>
+            
+            <hr class="my-6 border-gray-200">
+
+            <div class="mb-5">
+              <label class="account-label block mb-2">Manual Sync</label>
+              <p class="text-xs text-gray-400 mb-3">Manually sync all local files to the remote directory immediately.</p>
+              <button class="btn-primary flex items-center justify-center gap-2" id="btn_rclone_sync" onclick="triggerRcloneSync()">
+                <span>🚀 Sync Now</span>
+              </button>
+            </div>
           </div>
 
           <!-- Action buttons -->
@@ -928,40 +959,7 @@
     // Apply language on load
     $(function() { applyLanguage(); });
 
-    
-    // AES credentials are fetched after authentication
-    let aesKey = null;
-    let aesIv = null;
-    let aesReady = false;
-
-    async function fetchAesCredentials() {
-      try {
-        const res = await $.get("/api/aes_credentials");
-        if (res.aes_key && res.aes_iv) {
-          aesKey = res.aes_key;
-          aesIv = res.aes_iv;
-          aesReady = true;
-        }
-      } catch(e) {
-        console.error("Failed to fetch AES credentials:", e);
-      }
-    }
-    
-    function encrypt(word) {
-      const key = CryptoJS.enc.Utf8.parse(aesKey);
-      const iv = CryptoJS.enc.Utf8.parse(aesIv);
-      let srcs = CryptoJS.enc.Utf8.parse(word);
-      let encrypted = CryptoJS.AES.encrypt(srcs, key, { iv: iv, mode: CryptoJS.mode.CBC, padding: CryptoJS.pad.Pkcs7 });
-      let hexStr = encrypted.ciphertext.toString();
-      return CryptoJS.enc.Base64.stringify(CryptoJS.enc.Hex.parse(hexStr));
-    }
-
     function doWebLogin() {
-      if (!aesReady) {
-        $('#login_error').text('Encryption not ready — please wait...').show();
-        fetchAesCredentials().then(function() { doWebLogin(); });
-        return;
-      }
       var pValue = $('#login_password').val();
       if (!pValue) {
         $('#login_error').text('Please enter your password').show();
@@ -971,7 +969,7 @@
       $btn.prop('disabled', true).text('Verifying...');
       $('#login_error').hide();
 
-      $.post('/login', { password: encrypt(pValue) }, function(res) {
+      $.post('/login', { password: pValue }, function(res) {
         if (res.code === '1') {
           $('#login_password').val('');
           checkAuth();
@@ -995,10 +993,7 @@
       $.get('/api/check_auth', function(res) {
         if (res.authenticated) {
           $('#login_overlay').addClass('hidden');
-          // Fetch AES credentials now that we're authenticated
-          if (!aesReady) {
-            fetchAesCredentials();
-          }
+          loadAccountStatus();
         } else {
           $('#login_overlay').removeClass('hidden');
           $('#login_password').focus();
@@ -1011,11 +1006,9 @@
     // ─── Periodic auth check (detect session expiry) ──────────────
     setInterval(checkAuth, 30000);
 
-    // ─── Fetch AES credentials first, then check auth on page load
+    // ─── Check auth on page load
     $(function() {
-      fetchAesCredentials().then(function() {
-        checkAuth();
-      });
+      checkAuth();
     });
   </script>
   <script>
@@ -1080,6 +1073,13 @@
             var speed   = escapeHtml(item.download_speed || '0 B/s');
             var pct     = parseFloat(item.download_progress) || 0;
 
+            var actionCell = '';
+            if (!alreadyDown) {
+              actionCell = '<td><button class="btn-secondary py-1 px-2 text-xs text-red-500 hover:text-red-700 border border-red-200 hover:border-red-300 rounded" onclick="deleteDownload(\'' + chat + '\', \'' + fid + '\')">× Cancel</button></td>';
+            } else {
+              actionCell = '<td></td>';
+            }
+
             rowsHtml +=
               '<tr data-key="' + fid + '" data-chat="' + chat + '">' +
                 '<td><span class="chat-pill">' + chat + '</span></td>' +
@@ -1095,6 +1095,7 @@
                   '</div>' +
                 '</td>' +
                 '<td><span class="speed-badge">' + speed + '</span></td>' +
+                actionCell +
               '</tr>';
           }
           $tbody.html(rowsHtml);
@@ -1106,9 +1107,12 @@
 
       // ─── Download-sub tab switching ──────────────────────────────
       window.switchTab = function(index) {
-        if (currentTab === index) return;
         currentTab = index;
-
+        if (index === 1) {
+          $("#th_action").hide();
+        } else {
+          $("#th_action").show();
+        }
         $("#download_tabs button").each(function(i) {
           if (i === index) {
             $(this).addClass("tab-active");
@@ -1127,6 +1131,27 @@
         pollTimer = setInterval(fetchList, 3000);
       };
       startPolling();
+
+      // ─── Delete single download task ─────────────────────────────
+      window.deleteDownload = function(chat_id, message_id) {
+        if (!confirm("Cancel this download?")) return;
+        $.ajax({
+          url: "/api/download/delete",
+          method: "POST",
+          contentType: "application/json",
+          data: JSON.stringify({ chat_id: chat_id, message_id: message_id }),
+          success: function(res) {
+            // Remove the row immediately for a snappy UI
+            $('tr[data-chat="' + chat_id + '"][data-key="' + message_id + '"]').remove();
+            if ($("#list_body tr").length === 0) {
+              $("#empty_state").removeClass("hidden");
+            }
+          },
+          error: function() {
+            alert("Failed to cancel download");
+          }
+        });
+      };
 
       // ─── Download state toggle ───────────────────────────────────
       window.download_state_change = function(el) {
@@ -1685,6 +1710,9 @@
             $("#rclone_zip").prop("checked", data.before_upload_file_zip);
             $("#rclone_delete").prop("checked", data.after_upload_file_delete);
             rcloneEnableChanged();
+            
+            // Also load rclone.conf contents
+            loadRcloneConf();
           } else {
             showRcloneStatus("Failed to load settings: " + (data.error || "Unknown error"), "error");
           }
@@ -1760,6 +1788,74 @@
           fetchLogs();
         }
       }, 5000);
+      window.loadRcloneConf = function() {
+        $.get("/api/rclone/conf", function(res) {
+          if (res.success) {
+            var content = res.content || "";
+            $("#rclone_conf_editor").val(content);
+            checkRcloneConfWarning();
+          }
+        });
+      };
+      
+      window.checkRcloneConfWarning = function() {
+        var content = $("#rclone_conf_editor").val().trim();
+        var isEnabled = $("#rclone_enable").is(":checked");
+        var isRclone = $("#rclone_adapter").val() === "rclone";
+        
+        if (isEnabled && isRclone && content === "") {
+          $("#rclone_conf_warning").removeClass("hidden");
+        } else {
+          $("#rclone_conf_warning").addClass("hidden");
+        }
+      };
+
+      window.saveRcloneConf = function() {
+        var $btn = $("#btn_save_rclone_conf");
+        var originalText = $btn.html();
+        $btn.html("⏳ Saving...").prop("disabled", true);
+        
+        var content = $("#rclone_conf_editor").val();
+        
+        $.post({
+          url: "/api/rclone/conf",
+          data: JSON.stringify({ content: content }),
+          contentType: "application/json",
+          success: function(res) {
+            $btn.html("✅ Saved").prop("disabled", false);
+            setTimeout(function() { $btn.html(originalText); }, 2000);
+            checkRcloneConfWarning();
+            showRcloneStatus(res.message, "success");
+          },
+          error: function(err) {
+            $btn.html("❌ Error").prop("disabled", false);
+            setTimeout(function() { $btn.html(originalText); }, 2000);
+            var msg = err.responseJSON && err.responseJSON.error ? err.responseJSON.error : "Save failed";
+            showRcloneStatus(msg, "error");
+          }
+        });
+      };
+      
+      window.triggerRcloneSync = function() {
+        var $btn = $("#btn_rclone_sync");
+        var originalText = $btn.html();
+        $btn.html("<span>⏳ Starting...</span>").prop("disabled", true);
+        
+        $.post({
+          url: "/api/rclone/sync",
+          success: function(res) {
+            $btn.html("<span>✅ Started</span>").prop("disabled", false);
+            setTimeout(function() { $btn.html(originalText); }, 3000);
+            showRcloneStatus(res.message, "success");
+          },
+          error: function(err) {
+            $btn.html("<span>❌ Error</span>").prop("disabled", false);
+            setTimeout(function() { $btn.html(originalText); }, 3000);
+            var msg = err.responseJSON && err.responseJSON.error ? err.responseJSON.error : "Sync failed";
+            showRcloneStatus(msg, "error");
+          }
+        });
+      };
     });
   </script>
 </body>

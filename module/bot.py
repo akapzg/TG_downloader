@@ -82,7 +82,7 @@ class DownloadBot:
 
     def remove_task_node(self, task_id: int):
         """Remove task node"""
-        self.task_node.pop(task_id)
+        self.task_node.pop(task_id, None)
 
     def stop_task(self, task_id: str):
         """Stop task"""
@@ -149,32 +149,31 @@ class DownloadBot:
 
         # Command list
         commands = [
-            types.BotCommand("help", _t("Help")),
+            types.BotCommand("help", _t("Show available commands")),
             types.BotCommand(
                 "get_info", _t("Get group and user info from message link")
             ),
             types.BotCommand(
                 "download",
-                _t(
-                    "To download the video, use the method to directly enter /download to view"
-                ),
+                _t("Download messages"),
             ),
             types.BotCommand(
                 "forward",
-                _t("Forward video, use the method to directly enter /forward to view"),
+                _t("Forward messages"),
             ),
             types.BotCommand(
                 "listen_forward",
-                _t(
-                    "Listen forward, use the method to directly enter /listen_forward to view"
-                ),
+                _t("Listen for forwarded messages"),
+            ),
+            types.BotCommand(
+                "forward_to_comments",
+                _t("Forward a specific media to a comment section"),
             ),
             types.BotCommand(
                 "add_filter",
-                _t(
-                    "Add download filter, use the method to directly enter /add_filter to view"
-                ),
+                _t("Add download filter"),
             ),
+            types.BotCommand("rclone", _t("Sync local files to Cloud Drive")),
             types.BotCommand("set_language", _t("Set language")),
             types.BotCommand("stop", _t("Stop bot download or forward")),
         ]
@@ -288,6 +287,14 @@ class DownloadBot:
         )
 
         self.bot.add_handler(
+            MessageHandler(
+                rclone_sync,
+                filters=pyrogram.filters.command(["rclone"])
+                & pyrogram.filters.user(self.allowed_user_ids),
+            )
+        )
+
+        self.bot.add_handler(
             CallbackQueryHandler(
                 on_query_handler, filters=pyrogram.filters.user(self.allowed_user_ids)
             )
@@ -385,6 +392,7 @@ async def send_help_str(client: pyrogram.Client, chat_id):
         f"/forward - {_t('Forward messages')}\n"
         f"/listen_forward - {_t('Listen for forwarded messages')}\n"
         f"/forward_to_comments - {_t('Forward a specific media to a comment section')}\n"
+        f"/rclone - {_t('Sync local files to Cloud Drive')}\n"
         f"/set_language - {_t('Set language')}\n"
         f"/stop - {_t('Stop bot download or forward')}\n\n"
         # f"/add_replace_ad - {_t('Add replace advertisement filter')}\n"
@@ -446,6 +454,29 @@ async def set_language(client: pyrogram.Client, message: pyrogram.types.Message)
         await client.send_message(
             message.from_user.id,
             _t("Invalid command format. Please use /set_language en/ru/zh/ua"),
+        )
+
+
+async def rclone_sync(client: pyrogram.Client, message: pyrogram.types.Message):
+    """
+    Sync all local files to cloud drive.
+    """
+    await client.send_message(
+        message.from_user.id,
+        _t("Starting manual cloud sync...")
+    )
+    
+    success = await _bot.app.sync_cloud_drive()
+    
+    if success:
+        await client.send_message(
+            message.from_user.id,
+            _t("Manual cloud sync completed successfully.")
+        )
+    else:
+        await client.send_message(
+            message.from_user.id,
+            _t("Manual cloud sync failed or is disabled.")
         )
 
 
@@ -785,7 +816,9 @@ async def remove_replace_advertisement_filter(
             )
         else:
             _bot.app.replace_advertisement_list.append(filter_str)
-            await client.send_message()
+            await client.send_message(
+                message.from_user.id, f"{_t('Filter')} : {filter_str} {_t('not exist')}"
+            )
         _bot.app.update_config(True)
     except Exception as e:
         await client.send_message(
@@ -960,6 +993,7 @@ async def download_from_bot(client: pyrogram.Client, message: pyrogram.types.Mes
             return
     try:
         chat_id, _, _ = await parse_link(_bot.client, url)
+        entity = None
         if chat_id:
             entity = await _bot.client.get_chat(chat_id)
         if entity:

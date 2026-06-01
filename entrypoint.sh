@@ -11,6 +11,11 @@ if [ -d "$CONFIG_FILE" ]; then
     rm -rf "$CONFIG_FILE"
 fi
 
+if [ -d "$DATA_FILE" ]; then
+    echo "[INIT] Removing empty data.yaml directory created by Docker bind mount..."
+    rm -rf "$DATA_FILE"
+fi
+
 if [ ! -f "$CONFIG_FILE" ]; then
     echo "[INIT] config.yaml not found, copying from example..."
     cp "$CONFIG_EXAMPLE" "$CONFIG_FILE"

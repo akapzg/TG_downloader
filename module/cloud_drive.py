@@ -6,7 +6,6 @@ import inspect
 import os
 import re
 from asyncio import subprocess
-from subprocess import Popen
 from typing import Callable
 from zipfile import ZipFile
 
@@ -61,8 +60,7 @@ class CloudDrive:
         """mkdir in remote"""
         import subprocess as _subprocess
         _subprocess.run(
-            f'"{drive_config.rclone_path}" mkdir "{remote_dir}/"',
-            shell=True,
+            [drive_config.rclone_path, "mkdir", f"{remote_dir}/"],
             capture_output=True,
         )
 
@@ -117,12 +115,12 @@ class CloudDrive:
             else:
                 file_path = local_file_path
 
-            cmd = (
-                f'"{drive_config.rclone_path}" copy "{file_path}" '
-                f'"{remote_dir}/" --create-empty-src-dirs --ignore-existing --progress'
-            )
-            proc = await asyncio.create_subprocess_shell(
-                cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT
+            cmd = [
+                drive_config.rclone_path, "copy", file_path,
+                f"{remote_dir}/", "--create-empty-src-dirs", "--ignore-existing", "--progress"
+            ]
+            proc = await asyncio.create_subprocess_exec(
+                *cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT
             )
             if proc.stdout:
                 async for output in proc.stdout:
@@ -249,5 +247,77 @@ class CloudDrive:
             )
         elif drive_config.upload_adapter == "aligo":
             ret = CloudDrive.aligo_upload_file(drive_config, save_path, local_file_path)
+
+        return ret
+
+    @staticmethod
+    async def rclone_sync_all_files(
+        drive_config: CloudDriveConfig,
+        save_path: str,
+    ) -> bool:
+        """Use Rclone to copy the entire save_path directory to remote"""
+        upload_status: bool = False
+        try:
+            remote_dir = drive_config.remote_dir.replace("\\", "/")
+            if not drive_config.dir_cache.get(remote_dir):
+                CloudDrive.rclone_mkdir(drive_config, remote_dir)
+                drive_config.dir_cache[remote_dir] = True
+
+            cmd = [
+                drive_config.rclone_path, "copy", save_path,
+                f"{remote_dir}/", "--create-empty-src-dirs", "--ignore-existing"
+            ]
+            
+            logger.info(f"Starting rclone sync: {' '.join(cmd)}")
+            proc = await asyncio.create_subprocess_exec(
+                *cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT
+            )
+            
+            if proc.stdout:
+                async for output in proc.stdout:
+                    s = output.decode(errors="replace")
+                    logger.debug(s)
+            
+            await proc.wait()
+            
+            if proc.returncode == 0:
+                upload_status = True
+                logger.info("rclone sync completed successfully.")
+            else:
+                logger.error(f"rclone sync failed with returncode {proc.returncode}")
+        except Exception as e:
+            logger.error(f"rclone_sync_all_files error: {e.__class__} {e}")
+            return False
+
+        return upload_status
+
+    @staticmethod
+    async def sync_all_files(
+        drive_config: CloudDriveConfig, save_path: str
+    ) -> bool:
+        """Sync all local files to cloud
+        Parameters
+        ----------
+        drive_config: CloudDriveConfig
+            see @CloudDriveConfig
+        save_path: str
+            Local file save path config
+        
+        Returns
+        -------
+        bool
+            True or False
+        """
+        if not drive_config.enable_upload_file:
+            return False
+
+        ret: bool = False
+        if drive_config.upload_adapter == "rclone":
+            ret = await CloudDrive.rclone_sync_all_files(
+                drive_config, save_path
+            )
+        elif drive_config.upload_adapter == "aligo":
+            logger.warning("Aligo sync_all_files is not supported yet.")
+            ret = False
 
         return ret

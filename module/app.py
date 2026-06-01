@@ -1,5 +1,7 @@
 """Application module"""
 
+import functools
+
 import asyncio
 import os
 import time
@@ -419,6 +421,7 @@ class Application:
         )
         self.group_add_advertisement: dict = {}
         self.forward_limit_call = LimitCall(max_limit_call_times=33)
+        self.canceled_messages = set()
 
         self.loop = asyncio.new_event_loop()
         asyncio.set_event_loop(self.loop)
@@ -708,13 +711,26 @@ class Application:
         elif self.cloud_drive_config.upload_adapter == "aligo":
             ret = await self.loop.run_in_executor(
                 self.executor,
-                CloudDrive.aligo_upload_file(
-                    self.cloud_drive_config, self.save_path, local_file_path
+                functools.partial(
+                    CloudDrive.aligo_upload_file,
+                    self.cloud_drive_config,
+                    self.save_path,
+                    local_file_path,
                 ),
             )
 
         return ret
 
+    async def sync_cloud_drive(self) -> bool:
+        """Sync all local files to cloud drive"""
+        if not self.cloud_drive_config.enable_upload_file:
+            return False
+            
+        ret = await CloudDrive.sync_all_files(
+            self.cloud_drive_config,
+            self.save_path
+        )
+        return ret
     def get_file_save_path(
         self, media_type: str, chat_title: str, media_datetime: str
     ) -> str:
@@ -901,13 +917,21 @@ class Application:
             tmp = self.config_file + ".tmp"
             with open(tmp, "w", encoding="utf-8") as yaml_file:
                 _yaml.dump(self.config, yaml_file)
-            os.rename(tmp, self.config_file)
+            os.replace(tmp, self.config_file)
 
         if immediate:
             tmp = self.app_data_file + ".tmp"
             with open(tmp, "w", encoding="utf-8") as yaml_file:
                 _yaml.dump(self.app_data, yaml_file)
-            os.rename(tmp, self.app_data_file)
+            os.replace(tmp, self.app_data_file)
+
+    def save_app_data(self):
+        """Save app data immediately to file"""
+        tmp = self.app_data_file + ".tmp"
+        with open(tmp, "w", encoding="utf-8") as yaml_file:
+            _yaml.dump(self.app_data, yaml_file)
+        os.replace(tmp, self.app_data_file)
+
 
     def set_language(self, language: Language):
         """Set Language"""

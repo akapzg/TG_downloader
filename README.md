@@ -72,19 +72,15 @@ Configure a Telegram bot to control downloads remotely:
 4. Save — changes take effect after restart
 
 ### 5. Cloud Upload (Optional)
-Upload downloaded files to cloud storage via rclone:
-1. Install and configure rclone on your host:
-   ```bash
-   rclone config
-   ```
-2. Copy the rclone config to the project directory:
-   ```bash
-   mkdir -p ~/tg_downloader/rclone
-   cp ~/.config/rclone/rclone.conf ~/tg_downloader/rclone/
-   ```
-3. Go to the **Rclone** tab in the Web UI
-4. Enable cloud upload, set the remote directory (e.g. `gdrive:/telegram_downloads`)
-5. Save — changes take effect after restart
+Upload downloaded files to cloud storage via rclone. Because a headless server/Docker container usually lacks a web browser for OAuth authentication, it's highly recommended to configure Rclone on your personal computer first:
+1. Download and install Rclone on your local Windows/Mac.
+2. Run `rclone config` in your local terminal to create a new remote (e.g., named `my_drive`). Select your cloud provider (Google Drive, OneDrive, etc.) and complete the browser authentication.
+3. Locate the generated `rclone.conf` file on your local computer and copy it to the `./rclone/` directory on your server.
+4. Go to the **Rclone** tab in the Web UI.
+5. Enable cloud upload, set the remote directory (e.g., `my_drive:/telegram_downloads` — the name must match what you created).
+6. Save — changes take effect after restart.
+
+*(Alternatively, run `docker exec -it tg_downloader rclone config` on the server and use the headless authentication flow).*
 
 ## Maintenance
 

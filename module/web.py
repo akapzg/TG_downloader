@@ -23,7 +23,6 @@ from module.download_stat import (
     get_total_download_speed,
     set_download_state,
 )
-from utils.crypto import AesBase64
 from utils.format import format_byte
 
 log = logging.getLogger("werkzeug")
@@ -31,19 +30,30 @@ log.setLevel(logging.ERROR)
 
 _flask_app = Flask(__name__)
 
-_flask_app.secret_key = os.environ.get("FLASK_SECRET_KEY") or secrets.token_hex(32)
+_flask_secret = os.environ.get("FLASK_SECRET_KEY")
+if not _flask_secret:
+    try:
+        os.makedirs("/app/data", exist_ok=True)
+        with open("/app/data/.flask_secret", "r") as f:
+            _flask_secret = f.read().strip()
+    except OSError:
+        pass
+
+if not _flask_secret:
+    _flask_secret = secrets.token_hex(32)
+    try:
+        os.makedirs("/app/data", exist_ok=True)
+        with open("/app/data/.flask_secret", "w") as f:
+            f.write(_flask_secret)
+    except OSError:
+        pass
+
+_flask_app.secret_key = _flask_secret
 _flask_app.config["PERMANENT_SESSION_LIFETIME"] = timedelta(minutes=30)
 _login_manager = LoginManager()
 _login_manager.login_view = "login"
 _login_manager.init_app(_flask_app)
 web_login_users: dict = {}
-deAesCrypt = AesBase64(
-    os.environ.get("AES_KEY") or secrets.token_hex(16),
-    os.environ.get("AES_IV") or secrets.token_hex(8),
-)
-
-# Stores the generated/default AES credentials for the authenticated API
-# (deprecated — credentials served directly from deAesCrypt instance)
 
 # ── Telegram auth state machine ──────────────────────────────────────
 # Stores in-progress Pyrogram login clients keyed by Flask session ID.
@@ -51,6 +61,15 @@ deAesCrypt = AesBase64(
 _tg_auth_states: dict = {}
 _tg_auth_states_lock = threading.Lock()
 _app_ref: Optional[Application] = None
+
+# Global auth event loop for Pyrogram login tasks
+_auth_loop = asyncio.new_event_loop()
+def _run_auth_loop():
+    asyncio.set_event_loop(_auth_loop)
+    _auth_loop.run_forever()
+
+_auth_thread = threading.Thread(target=_run_auth_loop, daemon=True)
+_auth_thread.start()
 
 
 @dataclass
@@ -147,18 +166,11 @@ def login():
     """
     if request.method == "POST":
         username = "root"
-        web_login_form = {}
-        for key, value in request.form.items():
-            if value:
-                # jQuery $.post sends form-encoded data — "+" in base64 becomes " "
-                value = value.replace(" ", "+")
-                value = deAesCrypt.decrypt(value)
-            web_login_form[key] = value
+        password = request.form.get("password")
 
-        if not web_login_form.get("password"):
+        if not password:
             return jsonify({"code": "0"})
 
-        password = web_login_form["password"]
         if username in web_login_users and web_login_users[username] == password:
             user = User()
             login_user(user)
@@ -188,15 +200,6 @@ def index():
     )
 
 
-@_flask_app.route("/api/aes_credentials")
-def aes_credentials():
-    """Return AES key/IV for frontend encryption (public — needed for login form)."""
-    return jsonify({
-        "aes_key": deAesCrypt.key.decode("utf-8"),
-        "aes_iv": deAesCrypt.iv.decode("utf-8"),
-    })
-
-
 @_flask_app.route("/get_download_status")
 @login_required
 def get_download_speed():
@@ -211,7 +214,7 @@ def get_download_speed():
 @login_required
 def web_set_download_state():
     """Set download state"""
-    state = request.args.get("state")
+    state = request.args.get("state") or request.form.get("state")
 
     if state == "continue" and get_download_state() is DownloadState.StopDownload:
         set_download_state(DownloadState.Downloading)
@@ -224,7 +227,24 @@ def web_set_download_state():
     return state
 
 
+@_flask_app.route("/api/download/delete", methods=["POST"])
+@login_required
+def web_delete_download():
+    """Delete a specific downloading task"""
+    data = request.get_json(force=True, silent=True) or {}
+    chat_id = data.get("chat_id")
+    message_id = data.get("message_id")
+    if not chat_id or not message_id:
+        return jsonify({"success": False, "error": "Missing parameters"}), 400
+        
+    app = _app_ref
+    if app and hasattr(app, "canceled_messages"):
+        app.canceled_messages.add((str(chat_id), str(message_id)))
+        return jsonify({"success": True})
+        
+    return jsonify({"success": False, "error": "App not ready"}), 500
 @_flask_app.route("/get_app_version")
+@login_required
 def get_app_version():
     """Get telegram_media_downloader version"""
     return os.environ.get("APP_VERSION", utils.__version__)
@@ -262,9 +282,9 @@ def get_download_list():
                 "id": f"{idx}",
                 "filename": os.path.basename(value["file_name"]),
                 "total_size": format_byte(value["total_size"]),
-                "download_progress": f"{round(value['down_byte'] / value['total_size'] * 100, 1)}",
+                "download_progress": f"{round(value['down_byte'] / value['total_size'] * 100, 1)}" if value['total_size'] > 0 else "0.0",
                 "download_speed": download_speed,
-                "save_path": value["file_name"].replace("\\\\", "/"),
+                "save_path": value["file_name"].replace("\\", "/"),
             })
 
     if already_down:
@@ -302,8 +322,9 @@ def _append_download_history(app, chat_id, idx, value):
                 "total_size": format_byte(value["total_size"]),
                 "download_progress": "100.0",
                 "download_speed": "0 B/s",
-                "save_path": value["file_name"].replace("\\\\", "/"),
+                "save_path": value["file_name"].replace("\\", "/"),
             }
+            app.save_app_data()
             return
     history.append({
         "chat": str(chat_id),
@@ -312,8 +333,9 @@ def _append_download_history(app, chat_id, idx, value):
         "total_size": format_byte(value["total_size"]),
         "download_progress": "100.0",
         "download_speed": "0 B/s",
-        "save_path": value["file_name"].replace("\\\\", "/"),
+        "save_path": value["file_name"].replace("\\", "/"),
     })
+    app.save_app_data()
 
 
 # ═══════════════════════════════════════════════════════════════════════
@@ -334,7 +356,7 @@ def _cleanup_auth_state(sid: str):
         state = _tg_auth_states.pop(sid, None)
     if state and state.client:
         try:
-            asyncio.run(state.client.disconnect())
+            asyncio.run_coroutine_threadsafe(state.client.disconnect(), _auth_loop)
         except Exception:
             pass
 
@@ -410,37 +432,32 @@ def tg_login_start():
     _cleanup_auth_state(sid)  # remove any previous attempt
 
     try:
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        try:
-            client = _make_client(phone_number)
+        client = _make_client(phone_number)
 
-            async def _do_login():
-                await client.connect()
-                return await client.send_code(phone_number)
+        async def _do_login():
+            await client.connect()
+            return await client.send_code(phone_number)
 
-            sent_code = loop.run_until_complete(_do_login())
-            phone_code_hash = sent_code.phone_code_hash
+        future = asyncio.run_coroutine_threadsafe(_do_login(), _auth_loop)
+        sent_code = future.result()
+        phone_code_hash = sent_code.phone_code_hash
 
-            state = TgAuthState(
-                client=client,
-                phone_number=phone_number,
-                phone_code_hash=phone_code_hash,
-                step="code",
-            )
-            with _tg_auth_states_lock:
-                _tg_auth_states[sid] = state
+        state = TgAuthState(
+            client=client,
+            phone_number=phone_number,
+            phone_code_hash=phone_code_hash,
+            step="code",
+        )
+        with _tg_auth_states_lock:
+            _tg_auth_states[sid] = state
 
-            return jsonify({
-                "success": True,
-                "step": "code",
-                "phone_code_hash": phone_code_hash,
-                "timeout": getattr(sent_code, "timeout", 60),
-                "type": str(sent_code.type),
-            })
-        finally:
-            loop.close()
-            asyncio.set_event_loop(None)
+        return jsonify({
+            "success": True,
+            "step": "code",
+            "phone_code_hash": phone_code_hash,
+            "timeout": getattr(sent_code, "timeout", 60),
+            "type": str(sent_code.type),
+        })
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 400
 
@@ -476,7 +493,8 @@ def tg_verify_code():
                     return {"step": "2fa", "error": e}
                 raise
 
-        result = asyncio.run(_do_verify())
+        future = asyncio.run_coroutine_threadsafe(_do_verify(), _auth_loop)
+        result = future.result()
         if result["step"] == "done":
             _cleanup_auth_state(sid)
             return jsonify({
@@ -522,7 +540,8 @@ def tg_verify_2fa():
             await state.client.disconnect()
             return user
 
-        user = asyncio.run(_do_2fa())
+        future = asyncio.run_coroutine_threadsafe(_do_2fa(), _auth_loop)
+        user = future.result()
         _cleanup_auth_state(sid)
         return jsonify({
             "success": True,
@@ -666,7 +685,7 @@ def bot_update():
                 from ruamel import yaml as _ruamel_yaml
                 _yaml = _ruamel_yaml.YAML()
                 _yaml.dump(app.config, f)
-            os.rename(tmp, app.config_file)
+            os.replace(tmp, app.config_file)
             return jsonify({
                 "success": True,
                 "message": "Settings saved. Bot changes will take effect on next restart.",
@@ -764,7 +783,7 @@ def rclone_update():
                 from ruamel import yaml as _ruamel_yaml
                 _yaml = _ruamel_yaml.YAML()
                 _yaml.dump(app.config, f)
-            os.rename(tmp, app.config_file)
+            os.replace(tmp, app.config_file)
             return jsonify({
                 "success": True,
                 "message": "Settings saved. Changes will take effect on next restart.",
@@ -776,6 +795,50 @@ def rclone_update():
         "success": True,
         "message": "No changes detected.",
     })
+
+@_flask_app.route("/api/rclone/conf", methods=["GET"])
+@login_required
+def rclone_conf_get():
+    """Return the contents of rclone.conf"""
+    conf_path = os.path.expanduser("~/.config/rclone/rclone.conf")
+    if not os.path.exists(conf_path):
+        return jsonify({"success": True, "content": ""})
+    try:
+        with open(conf_path, "r", encoding="utf-8") as f:
+            return jsonify({"success": True, "content": f.read()})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+@_flask_app.route("/api/rclone/conf", methods=["POST"])
+@login_required
+def rclone_conf_update():
+    """Update the contents of rclone.conf"""
+    data = request.get_json(force=True, silent=True) or {}
+    content = data.get("content", "")
+    conf_path = os.path.expanduser("~/.config/rclone/rclone.conf")
+    
+    try:
+        os.makedirs(os.path.dirname(conf_path), exist_ok=True)
+        with open(conf_path, "w", encoding="utf-8") as f:
+            f.write(content)
+        return jsonify({"success": True, "message": "rclone.conf saved successfully."})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+@_flask_app.route("/api/rclone/sync", methods=["POST"])
+@login_required
+def rclone_sync_trigger():
+    """Trigger manual sync"""
+    app = _app_ref
+    if not app:
+        return jsonify({"success": False, "error": "App not ready"}), 500
+        
+    if not app.cloud_drive_config.enable_upload_file:
+        return jsonify({"success": False, "error": "Cloud upload is disabled in config."}), 400
+
+    # Execute sync in background
+    app.loop.create_task(app.sync_cloud_drive())
+    return jsonify({"success": True, "message": "Manual sync started in the background."})
 
 # ═══════════════════════════════════════════════════════════════════════
 # Core config API (api_id / api_hash)
@@ -832,7 +895,7 @@ def config_update():
                 from ruamel import yaml as _ruamel_yaml
                 _yaml = _ruamel_yaml.YAML()
                 _yaml.dump(app.config, f)
-            os.rename(tmp, app.config_file)
+            os.replace(tmp, app.config_file)
             return jsonify({
                 "success": True,
                 "message": "API credentials saved. Restart required for changes to take effect.",
@@ -864,6 +927,7 @@ def get_logs():
     if not os.path.exists(log_file):
         return jsonify({"success": False, "error": "Log file not found"}), 404
     
+    import collections
     with open(log_file, "r", encoding="utf-8") as f:
-        lines = f.readlines()[-100:]
+        lines = collections.deque(f, maxlen=100)
     return "".join(lines)

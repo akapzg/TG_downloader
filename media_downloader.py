@@ -12,7 +12,7 @@ from rich.logging import RichHandler
 
 from module.app import Application, ChatDownloadConfig, DownloadStatus, TaskNode
 from module.bot import start_download_bot, stop_download_bot
-from module.download_stat import update_download_status
+from module.download_stat import update_download_status, DownloadCancelledByUser
 from module.get_chat_history_v2 import get_chat_history_v2
 from module.language import _t
 from module.pyrogram_extension import (
@@ -53,6 +53,10 @@ logging.getLogger("pyrogram.client").addFilter(LogFilter())
 logging.getLogger("pyrogram").setLevel(logging.WARNING)
 
 
+class DownloadSizeMismatchError(Exception):
+    pass
+
+
 def _check_download_finish(media_size: int, download_path: str, ui_file_name: str):
     """Check download task if finish
 
@@ -76,7 +80,7 @@ def _check_download_finish(media_size: int, download_path: str, ui_file_name: st
             f"{media_size}, {_t('file name')}: {ui_file_name}"
         )
         os.remove(download_path)
-        raise pyrogram.errors.exceptions.bad_request_400.BadRequest()
+        raise DownloadSizeMismatchError()
 
 
 def _move_to_download_path(temp_download_path: str, download_path: str):
@@ -298,53 +302,55 @@ async def download_task(
     client: pyrogram.Client, message: pyrogram.types.Message, node: TaskNode
 ):
     """Download and Forward media"""
-
-    download_status, file_name = await download_media(
-        client, message, app.media_types, app.file_formats, node
-    )
-
-    if app.enable_download_txt and message.text and not message.media:
-        download_status, file_name = await save_msg_to_file(app, node.chat_id, message)
-
-    if not node.bot:
-        app.set_download_id(node, message.id, download_status)
-
-    node.download_status[message.id] = download_status
-
+    download_status = DownloadStatus.FailedDownload
+    file_name = None
     try:
-        file_size = os.path.getsize(file_name) if file_name else 0
-    except OSError:
-        file_size = 0
+        download_status, file_name = await download_media(
+            client, message, app.media_types, app.file_formats, node
+        )
 
-    await upload_telegram_chat(
-        client,
-        node.upload_user if node.upload_user else client,
-        app,
-        node,
-        message,
-        download_status,
-        file_name,
-    )
+        if app.enable_download_txt and message.text and not message.media:
+            download_status, file_name = await save_msg_to_file(app, node.chat_id, message)
 
-    # rclone upload
-    if (
-        not node.upload_telegram_chat_id
-        and download_status is DownloadStatus.SuccessDownload
-    ):
-        ui_file_name = file_name
-        if app.hide_file_name:
-            ui_file_name = f"****{os.path.splitext(file_name)[-1]}"
-        if await app.upload_file(
-            file_name, update_cloud_upload_stat, (node, message.id, ui_file_name)
+        node.download_status[message.id] = download_status
+
+        try:
+            file_size = os.path.getsize(file_name) if file_name else 0
+        except OSError:
+            file_size = 0
+
+        await upload_telegram_chat(
+            client,
+            node.upload_user if node.upload_user else client,
+            app,
+            node,
+            message,
+            download_status,
+            file_name,
+        )
+
+        # rclone upload
+        if (
+            not node.upload_telegram_chat_id
+            and download_status is DownloadStatus.SuccessDownload
         ):
-            node.upload_success_count += 1
+            ui_file_name = file_name
+            if app.hide_file_name:
+                ui_file_name = f"****{os.path.splitext(file_name)[-1]}"
+            if await app.upload_file(
+                file_name, update_cloud_upload_stat, (node, message.id, ui_file_name)
+            ):
+                node.upload_success_count += 1
 
-    await report_bot_download_status(
-        node.bot,
-        node,
-        download_status,
-        file_size,
-    )
+        await report_bot_download_status(
+            node.bot,
+            node,
+            download_status,
+            file_size,
+        )
+    finally:
+        if not node.bot:
+            app.set_download_id(node, message.id, download_status)
 
 
 # pylint: disable = R0915,R0914
@@ -415,7 +421,7 @@ async def download_media(
             if _can_download(_type, file_formats, file_format):
                 if _is_exist(file_name):
                     file_size = os.path.getsize(file_name)
-                    if file_size or file_size == media_size:
+                    if file_size and file_size == media_size:
                         logger.info(
                             f"id={message.id} {ui_file_name} "
                             f"{_t('already download,download skipped')}.\n"
@@ -473,10 +479,15 @@ async def download_media(
                     f"Message[{message.id}]: "
                     f"{_t('file reference expired for 3 retries, download skipped.')}"
                 )
+                break
         except pyrogram.errors.exceptions.flood_420.FloodWait as wait_err:
+            if wait_err.value > 300:
+                logger.error(f"Message[{message.id}]: FloodWait {wait_err.value} > 300s, failing.")
+                break
             await asyncio.sleep(wait_err.value)
             logger.warning("Message[{}]: FlowWait {}", message.id, wait_err.value)
-            _check_timeout(retry, message.id)
+            if _check_timeout(retry, message.id):
+                break
         except TypeError:
             # pylint: disable = C0301
             logger.warning(
@@ -486,8 +497,12 @@ async def download_media(
             await asyncio.sleep(RETRY_TIME_OUT)
             if _check_timeout(retry, message.id):
                 logger.error(
-                    f"Message[{message.id}]: {_t('Timing out after 3 reties, download skipped.')}"
+                    f"Message[{message.id}]: {_t('Timing out after 3 retries, download skipped.')}"
                 )
+                break
+        except DownloadCancelledByUser as e:
+            logger.info(f"Message[{message.id}]: {e}")
+            break
         except Exception as e:
             # pylint: disable = C0301
             if isinstance(e, (KeyboardInterrupt, SystemExit, asyncio.CancelledError)):
@@ -513,8 +528,9 @@ def _check_config() -> bool:
         _load_config()
         logger.add(
             os.path.join(app.log_file_path, "tdl.log"),
-            rotation="10 MB",
-            retention="10 days",
+            rotation="5 MB",
+            retention="3 days",
+            compression="zip",
             level=app.log_level,
         )
     except Exception as e:
@@ -539,6 +555,8 @@ async def worker(client: pyrogram.client.Client):
                 await download_task(node.client, message, node)
             else:
                 await download_task(client, message, node)
+        except (asyncio.CancelledError, SystemExit, KeyboardInterrupt):
+            raise
         except Exception as e:
             logger.exception(f"{e}")
 
@@ -614,6 +632,7 @@ async def download_all_chat(client: pyrogram.Client):
         except Exception as e:
             logger.warning(f"Download {key} error: {e}")
         finally:
+            value.total_task = value.node.total_task
             value.need_check = True
 
 

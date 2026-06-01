@@ -48,6 +48,10 @@ def set_download_state(state: DownloadState):
     _download_state = state
 
 
+class DownloadCancelledByUser(Exception):
+    """Raised when a download is manually canceled by the user."""
+    pass
+
 async def update_download_status(
     down_byte: int,
     total_size: int,
@@ -63,6 +67,13 @@ async def update_download_status(
     global _total_download_speed
     global _total_download_size
     global _last_download_time
+
+    # Check if this specific download was canceled
+    from module.app import get_app_instance
+    app_instance = get_app_instance()
+    if app_instance and hasattr(app_instance, "canceled_messages"):
+        if (str(node.chat_id), str(message_id)) in app_instance.canceled_messages:
+            raise DownloadCancelledByUser("Download cancelled via Web UI")
 
     if node.is_stop_transmission:
         client.stop_transmission()

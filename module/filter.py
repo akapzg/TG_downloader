@@ -158,6 +158,8 @@ class BaseFilter:
         elif p[2] == "*":
             p[0] = p[1] * p[3]
         elif p[2] == "/":
+            if p[3] == 0:
+                raise ValueError("Division by zero")
             p[0] = p[1] / p[3]
 
         self._output(f"binop {p[1]} {p[2]} {p[3]} = {p[0]}")
@@ -329,7 +331,7 @@ class BaseFilter:
             if not isinstance(p[3], str) and not isinstance(p[3], ReString):
                 raise ValueError(f"{p[1]} is str but {p[3]} is not")
         elif isinstance(p[1], int):
-            if not isinstance(p[3], int):
+            if not isinstance(p[3], int) or isinstance(p[3], bool):
                 raise ValueError(f"{p[1]} is int but {p[3]} is not")
         elif isinstance(p[1], bool):
             if not isinstance(p[3], bool):
@@ -367,6 +369,7 @@ class Filter:
     def check_filter(self, filter_str: str) -> Tuple[bool, Optional[str]]:
         """check filter str"""
         try:
-            return not self.exec(filter_str) is None, None
+            res = self.exec(filter_str)
+            return isinstance(res, bool), None
         except Exception as e:
             return False, str(e)

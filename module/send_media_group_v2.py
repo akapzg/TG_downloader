@@ -374,7 +374,7 @@ async def cache_media(
         random_id=client.rnd_id(),
         **await client.parser.parse(
             media_obj.caption
-            if media_obj.caption and media_obj.caption != "None"
+            if media_obj.caption and str(media_obj.caption) != "None"
             else ""
         ),
     )

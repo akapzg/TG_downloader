@@ -5,7 +5,7 @@ import base64
 from Crypto.Cipher import AES
 
 
-class AesBase64(object):
+class AesBase64:
     """for AES encryption"""
 
     def __init__(self, key: str, iv: str):
@@ -56,6 +56,8 @@ class AesBase64(object):
         """
         length = len(text)
         unpadding = ord(text[length - 1])
+        if not (1 <= unpadding <= 16) or text[-unpadding:] != chr(unpadding) * unpadding:
+            raise ValueError("Invalid PKCS7 padding")
         return text[0 : length - unpadding]
 
     def pkcs7padding(self, text):
@@ -69,9 +71,7 @@ class AesBase64(object):
             str: The padded text.
         """
         bs = 16
-        length = len(text)
         bytes_length = len(text.encode("utf-8"))
-        padding_size = length if (bytes_length == length) else bytes_length
-        padding = bs - padding_size % bs
+        padding = bs - bytes_length % bs
         padding_text = chr(padding) * padding
         return text + padding_text

@@ -72,18 +72,15 @@ docker compose restart
 4. 保存，重启后生效
 
 ### 5. 云盘上传（可选）
-通过 rclone 将下载文件自动上传到云存储：
-1. 在宿主机安装并配置 rclone：
-   ```bash
-   rclone config
-   ```
-2. 复制配置到项目目录：
-   ```bash
-   mkdir -p ~/tg_downloader/rclone
-   cp ~/.config/rclone/rclone.conf ~/tg_downloader/rclone/
-   ```
-3. 在 Web UI 的 **Rclone** 选项卡中启用云上传，设置远程目录（如 `gdrive:/telegram_downloads`）
-4. 保存，重启后生效
+通过 rclone 将下载文件自动上传到云存储。由于无头服务器/Docker 容器通常没有浏览器来进行 OAuth 网页鉴权，强烈建议**先在你的个人电脑上**配置好 Rclone：
+1. 在你的个人 Windows/Mac 电脑上下载并安装 Rclone。
+2. 在本地终端中运行 `rclone config`，新建一个云盘 remote（假设取名叫 `my_drive`）。选择对应的云盘（如 Google Drive / OneDrive 等），此时浏览器会弹出，请在浏览器中完成登录授权。
+3. 在本地电脑找到生成好的 `rclone.conf` 文件，将这个文件丢到服务器上本项目的 `./rclone/` 目录中。
+4. 进入 Web UI 的 **Rclone** 选项卡。
+5. 开启“启用自动上传文件”，设置远程目录（如 `my_drive:/telegram_downloads` — **冒号前的名字必须和你刚才取的名字完全一致**）。
+6. 保存，重启容器后生效。
+
+*(进阶用法：你也可以在服务器直接运行 `docker exec -it tg_downloader rclone config` 并选择无浏览器模式 (headless) 进行认证配置)。*
 
 ## 维护
 

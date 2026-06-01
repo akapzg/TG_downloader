@@ -25,7 +25,7 @@ def format_byte(size: float, dot=2):
 
     # pylint: disable = R0912
     if 0 <= size < 1:
-        human_size = str(round(size / 0.125, dot)) + "b"
+        human_size = str(round(size * 8, dot)) + "b"
     elif 1 <= size < 1024:
         human_size = str(round(size, dot)) + "B"
     elif math.pow(1024, 1) <= size < math.pow(1024, 2):
@@ -117,8 +117,8 @@ def get_date_time(text: str, fmt: str) -> SearchDateTimeResult:
                 res.value = datetime.strptime(
                     time_str.replace("/", "-").replace(".", "-").strip(), format_list[i]
                 ).strftime(fmt)
-            except Exception:
-                break
+            except ValueError:
+                continue
             if search_res.start() != 0:
                 res.left_str = search_text[0 : search_res.start()]
             if search_res.end() + 1 <= len(search_text):
